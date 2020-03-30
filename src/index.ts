@@ -1,13 +1,25 @@
 import express, {Express, NextFunction, Request, Response} from "express";
+import bodyParser from 'body-parser';
 import WebTorrent, {Torrent, TorrentFile} from "webtorrent";
 import mongoose, {Connection} from 'mongoose';
 import mime from 'mime';
 import rangeParser from 'range-parser';
 import pump from 'pump';
 import SocketIO from "socket.io";
+import {RoomManager} from './playback';
+
 
 const app: Express = express();
 const port = 5000;
+
+app.use(bodyParser.json()) // for parsing application/json
+app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
+app.use(require('./routes'));
+
+
+
+// Passport config.
+require('./config/passport');
 
 const videoTypes: Array<string> = [
     "mp4",
@@ -15,6 +27,7 @@ const videoTypes: Array<string> = [
 ];
 
 mongoose.connect("mongodb://localhost/test", {useUnifiedTopology: true, useNewUrlParser: true});
+
 
 
 const db: Connection = mongoose.connection;
@@ -28,7 +41,10 @@ const server = app.listen(port, () => {
     console.log(`Server started at http://localhost:${port}`);
 });
 
+
+
 const io = require("socket.io")(server);
+const roomManager: RoomManager = new RoomManager(io);
 
 db.once("open", () => {
     console.log("Boom! We're connected")
@@ -40,7 +56,6 @@ client.on("torrent", (a) => {
 });
 
 client.add(torrentString, (torrent: Torrent) => {
-
     torrent.on("done", () => {
         io.emit("done");
 
@@ -65,6 +80,7 @@ client.add(torrentString, (torrent: Torrent) => {
 io.on("connection", (socket: SocketIO.Socket) => {
     console.log(`User connected! ${socket.id}`);
 });
+
 
 app.get("/", (req: Request, res: Response<{ running: boolean }>, next: NextFunction) => {
     res.json({running: true});
@@ -189,3 +205,5 @@ function encodeRFC5987(str: string) {
         // so we can allow for a little better readability over the wire: |`^
         .replace(/%(?:7C|60|5E)/g, unescape)
 }
+
+
