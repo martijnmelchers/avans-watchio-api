@@ -6,8 +6,9 @@ import Users from '../../documents/user.interface';
 
 const router = express.Router();
 router.post('/', auth.optional, (req, res, next) => {
-    const user = req.body;
+    const { body: { user } } = req;
 
+    console.log(user);
     if(!user.email) {
         return res.status(422).json({
         errors: {
@@ -33,7 +34,7 @@ router.post('/', auth.optional, (req, res, next) => {
 
 
 router.post('/login', auth.optional, (req, res, next) => {
-    const user = req.body;
+    const { body: { user } } = req;
     if(!user.email) {
         return res.status(422).json({
           errors: {

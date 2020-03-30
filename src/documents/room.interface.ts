@@ -1,15 +1,16 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { QueueSchema } from './queue.interface';
+import {UserSchema} from './user.interface';
 
 export interface IRoom extends Document {
     Id: string;
-    Leven: string;
     Queue: [Schema.Types.DocumentArray]
+    Users: [Schema.Types.ObjectId]
 }
 
 const RoomSchema: Schema = new Schema({
     Id: {type: String, required: true, unique: true},
-    Leven: {type: String, required: true, default: "Test"},
+    Users: {type: [UserSchema], default: []},
     Queue: {type: QueueSchema}
 });
 

@@ -22,7 +22,7 @@ export interface IUser extends Document {
     generateJWT: Function,
 }
 
-const UserSchema: Schema = new Schema({
+export const UserSchema: Schema = new Schema({
     email: {type: String, required: true, unique: true},
     hash: {type: String, required: true},
     salt:  {type: String, required: true},
