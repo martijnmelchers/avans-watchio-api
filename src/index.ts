@@ -27,7 +27,7 @@ AppInstance = new App([
 
 
 mongoose.connect("mongodb://localhost/test", {useUnifiedTopology: true, useNewUrlParser: true});
-
+mongoose.set('useFindAndModify', false);
 
 
 

@@ -14,7 +14,7 @@ class UserController {
 
     public intializeRoutes() {
         this.router.post(this.path, auth.optional, this.createUser, );
-        this.router.post(`${this.path}/login`, auth.required, this.login);
+        this.router.post(`${this.path}/login`, auth.optional, this.login);
         this.router.get(`${this.path}/room`, auth.required, this.getRooms)
     }
 
