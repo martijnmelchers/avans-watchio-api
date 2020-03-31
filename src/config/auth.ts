@@ -5,7 +5,7 @@ import express from "express";
  const getTokenFromHeaders = (req: express.Request) => {
     const { headers: { authorization } } = req;
 
-    if(authorization && authorization.split(' ')[0] === 'Token') {
+     if(authorization && authorization.split(' ')[0] === 'Token') {
       return authorization.split(' ')[1];
     }
     return null;
@@ -17,6 +17,7 @@ import express from "express";
         secret: 'secret',
         userProperty: 'payload',
         getToken: getTokenFromHeaders,
+        credentialsRequired: true,
     }),
     optional: jwt({
         secret: 'secret',

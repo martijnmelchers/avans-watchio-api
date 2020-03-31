@@ -13,14 +13,14 @@ import StreamController from './controllers/stream.controller';
 const port = 5000;
 
 let AppInstance: App;
+// Passport config.
+require('./config/passport');
+
 
 AppInstance = new App([
     new UserController(),
     new StreamController()
 ], 5000);
-
-// Passport config.
-require('./config/passport');
 
 
 

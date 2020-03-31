@@ -1,6 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import {Server} from 'socket.io';
+import passport from 'passport';
 const cors = require('cors');
 
 class App {
@@ -19,6 +20,7 @@ class App {
     }
 
     private initializeMiddlewares() {
+        this.app.use(passport.initialize());
         this.app.use(bodyParser.json());
         this.app.use(bodyParser.urlencoded());
         this.app.use(cors());

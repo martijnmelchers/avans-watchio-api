@@ -2,9 +2,10 @@ import * as express from 'express';
 import Users from '../documents/user.interface';
 import auth from '../config/auth';
 import passport from 'passport';
+import {Response, Request} from 'express';
 
 class UserController {
-    public path = '/controllers';
+    public path = '/users';
     public router = express.Router();
 
     constructor() {
@@ -13,7 +14,8 @@ class UserController {
 
     public intializeRoutes() {
         this.router.post(this.path, this.createUser, auth.optional);
-        this.router.post(this.path + '/login', this.login, auth.optional);
+        this.router.post(`${this.path}/login`, this.login);
+        this.router.get(`${this.path}/room`, this.getRooms, auth.required)
     }
 
     createUser = (req: express.Request, res: express.Response) => {
@@ -75,6 +77,11 @@ class UserController {
             return res.status(400);
         })(req, res, next);
     }
+
+    getRooms = async (req: Request, res: Response) => {
+        console.log();
+        res.send(req.user);
+    };
 }
 
 export default UserController;
