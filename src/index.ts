@@ -7,12 +7,13 @@ import rangeParser from 'range-parser';
 import pump from 'pump';
 import SocketIO from "socket.io";
 import {RoomManager} from './playback';
-const cors = require('cors');
+import cors from 'cors';
+
 const app: Express = express();
 const port = 5000;
 
 app.use(bodyParser.json()) // for parsing application/json
-app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({extended: true})) // for parsing application/x-www-form-urlencoded
 app.use(cors());
 app.use(require('./routes'));
 
@@ -28,7 +29,6 @@ const videoTypes: Array<string> = [
 mongoose.connect("mongodb://localhost/test", {useUnifiedTopology: true, useNewUrlParser: true});
 
 
-
 const db: Connection = mongoose.connection;
 
 let file: TorrentFile;
@@ -39,7 +39,6 @@ const server = app.listen(port, () => {
 
     console.log(`Server started at http://localhost:${port}`);
 });
-
 
 
 const io = require("socket.io")(server);
@@ -88,7 +87,7 @@ app.get("/", (req: Request, res: Response<{ running: boolean }>, next: NextFunct
 
 app.get("/stream", (req: Request, res: Response, next: NextFunction) => {
 
-    if(file == null) {
+    if (file == null) {
         res.statusCode = 200;
         res.end();
         return;
