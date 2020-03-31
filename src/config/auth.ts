@@ -15,13 +15,13 @@ import express from "express";
  const auth = {
     required: jwt({
         secret: 'secret',
-        userProperty: 'payload',
+        userProperty: 'user',
         getToken: getTokenFromHeaders,
         credentialsRequired: true,
     }),
     optional: jwt({
         secret: 'secret',
-        userProperty: 'payload',
+        userProperty: 'user',
         getToken: getTokenFromHeaders,
         credentialsRequired: false,
     }),

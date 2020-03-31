@@ -3,7 +3,7 @@ import Rooms, {IRoom} from '../documents/room.interface';
 import auth from '../config/auth';
 
 class RoomController {
-    public path = '/controllers';
+    public path = '/rooms';
     public router = express.Router();
 
     constructor() {
@@ -11,23 +11,32 @@ class RoomController {
     }
 
     public intializeRoutes() {
-        this.router.get('/', auth.required, this.getRooms);
-        this.router.post('/', auth.required, this.createRoom);
-        this.router.get('/:roomId', auth.required, this.getRoom);
-        this.router.delete('/:roomId', auth.required, this.deleteRoom)
+        this.router.get(this.path, auth.required, this.getRooms);
+        this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
+        this.router.post(`${this.path}`, auth.required, this.createRoom);
+        this.router.delete(`${this.path}/:roomId`, auth.required, this.deleteRoom)
     }
 
-    getRooms = (req: Request, res: Response) => {
-        return res.json(Rooms)
-    };
+     getRooms = async (req: Request, res: Response) => {
+         res.json(await Rooms.find().populate({path: 'Users', model: 'User'}));
+     };
 
     getRoom = async (req: Request, res: Response) => {
-        if (!req.params.roomId) res.status(422);
-        const room = await Rooms.findOne({Id: req.params.roomId}).populate('User').populate('Queue');
-        if (!room)
-            return res.status(404);
+        if (!req.params.roomId) res.sendStatus(422);
 
-        return res.json(room);
+        try{
+            const room = await Rooms.findOne({Id: req.params.roomId}).populate({path: 'Users', model: 'User'});
+
+            if(room == null){
+                res.sendStatus(404);
+            }
+            res.json(room);
+        }
+        catch (e) {
+            console.log(e);
+        }
+
+        res.status(404);
     };
 
     createRoom = async (req: Request, res: Response) => {
@@ -37,14 +46,16 @@ class RoomController {
     };
 
     deleteRoom = (req: Request, res: Response) => {
-        if (!req.params.roomId) res.status(422);
+        if (!req.params.roomId) res.sendStatus(422);
         const roomId = req.params.roomId;
 
         Rooms.deleteOne({Id: roomId}).then(() => {
-            return res.status(200);
+            return res.sendStatus(200);
 
         }).catch((err) => {
-            return res.status(404);
+            return res.sendStatus(404);
         });
     }
 }
+
+export default RoomController;

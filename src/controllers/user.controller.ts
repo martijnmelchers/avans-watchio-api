@@ -1,9 +1,9 @@
 import * as express from 'express';
-import Users from '../documents/user.interface';
+import Users, {IUser} from '../documents/user.interface';
 import auth from '../config/auth';
 import passport from 'passport';
 import {Response, Request} from 'express';
-
+import Room from '../documents/room.interface';
 class UserController {
     public path = '/users';
     public router = express.Router();
@@ -13,9 +13,9 @@ class UserController {
     }
 
     public intializeRoutes() {
-        this.router.post(this.path, this.createUser, auth.optional);
-        this.router.post(`${this.path}/login`, this.login);
-        this.router.get(`${this.path}/room`, this.getRooms, auth.required)
+        this.router.post(this.path, auth.optional, this.createUser, );
+        this.router.post(`${this.path}/login`, auth.required, this.login);
+        this.router.get(`${this.path}/room`, auth.required, this.getRooms)
     }
 
     createUser = (req: express.Request, res: express.Response) => {
@@ -79,8 +79,19 @@ class UserController {
     }
 
     getRooms = async (req: Request, res: Response) => {
-        console.log();
-        res.send(req.user);
+        const user: IUser | undefined = req.user as IUser;
+
+        Users.findOne({email: user.email},(err:any, user) => {
+            console.log(err);
+            if(user){
+                return Room.find({Users: {$in: [user.toObject()]}}).then(rooms => {
+                    return res.json(rooms);
+                })
+            }
+            else{
+                res.status(404);
+            }
+        });
     };
 }
 

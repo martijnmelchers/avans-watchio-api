@@ -10,6 +10,7 @@ import {RoomManager} from './playback';
 import App from './app';
 import UserController from './controllers/user.controller';
 import StreamController from './controllers/stream.controller';
+import RoomController from './controllers/room.controller';
 const port = 5000;
 
 let AppInstance: App;
@@ -19,7 +20,8 @@ require('./config/passport');
 
 AppInstance = new App([
     new UserController(),
-    new StreamController()
+    new StreamController(),
+    new RoomController()
 ], 5000);
 
 
@@ -78,4 +80,5 @@ db.once("open", () => {
 io.on("connection", (socket: SocketIO.Socket) => {
     console.log(`User connected! ${socket.id}`);
 });
+
 
