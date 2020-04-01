@@ -1,22 +1,20 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import {Server} from 'socket.io';
 import passport from 'passport';
+import * as http from 'http';
 const cors = require('cors');
 
 class App {
     public app: express.Application;
     public port: number;
-    private _controllers: any[];
+    private _controllers: any[]| undefined;
+    private _server: http.Server | undefined;
 
-    constructor(controllers: any[], port: number) {
+    constructor(port: number) {
         this.app = express();
         this.port = port;
-        this._controllers = controllers;
-
 
         this.initializeMiddlewares();
-        this.initializeControllers();
     }
 
     private initializeMiddlewares() {
@@ -26,21 +24,30 @@ class App {
         this.app.use(cors());
     }
 
-    private initializeControllers() {
+    public initializeControllers(controllers: any[]) {
+        this._controllers = controllers;
         this._controllers.forEach((controller:any) => {
             this.app.use('/', controller.router);
         });
     }
 
     public getController(type:string){
-        console.log(this._controllers);
-        return this._controllers.find((controller) =>  controller.constructor.name == type);
+        if(this._controllers){
+            return this._controllers.find((controller) =>  controller.constructor.name == type);
+        }
+        return null;
     }
 
     public listen() {
-        return this.app.listen(this.port, () => {
+        this._server = this.app.listen(this.port, () => {
             console.log(`App listening on the port ${this.port}`);
         });
+
+        return this._server;
+    }
+
+    public getServer(): http.Server | undefined{
+        return this._server;
     }
 }
 export default App;

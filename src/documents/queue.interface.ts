@@ -1,10 +1,11 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IQueueItem extends Document {
-    Id: string;
-    magnetUri: string;
+    Position: number;
+    MagnetUri: string;
 }
+
 export const QueueItemSchema: Schema = new Schema({
-    Id: {type: String, required: true},
-    magnetUri: {type: String, required: true}
+    Position: {type: Number, required: true, unique: true},
+    MagnetUri: {type: String, required: true}
 });

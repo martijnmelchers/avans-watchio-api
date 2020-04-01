@@ -1,9 +1,10 @@
 import { Socket } from "socket.io";
 import * as jwt from 'jsonwebtoken';
 import User, {IUser} from './documents/user.interface';
-import Room, {IRoom} from './documents/room.interface';
+import Rooms, {IRoom} from './documents/room.interface';
 
 import {decode} from 'jsonwebtoken';
+import {IQueueItem} from './documents/queue.interface';
 
 export class RoomManager {
     private _io: any;
@@ -14,48 +15,62 @@ export class RoomManager {
 
     private onConnect(socket: Socket) {
         // Current room is also stored locally.
-        socket.on('joinRoom',  (data) => this.joinRoom(socket, data));
-        socket.on('createRoom', (data) => this.createRoom(socket, data));
-        socket.on('addToQueue',(data)   => this.add(socket, data)) ;
+        socket.on('connectRoom',  (data) => this.connectRoom(socket, data));
     }
 
+    // Checks if the user is part of this room and connects to it.
+    async connectRoom(socket: Socket, data: { user: string, room: string }) {
 
-    // Adds the user to the room inside the database.
-    async joinRoom(socket: Socket, data: any){
-        const token = data.user;
-        const user: IUser = await this.authenticate(token);
-        const roomId: string = data.room;
-
-        let room = await Room.findOne({Id: roomId}).populate({path: 'Users', model: 'User'});
-
-        if(room){
-            room.Users.push(user.toObject());
-            room.save();
-
-            console.log(room.toObject());
-            socket.emit('joinedRoom', room.toObject());
-        }
-    }
-
-    async createRoom(socket: Socket, data: any){
-        const token = data.user;
-        const user: IUser = await this.authenticate(token);
-        const roomId: string = data.room;
-
-        if(!await Room.exists({Id: roomId})){
-            const roomObj = {
-              Id: roomId,
-            };
-            await Room.create(roomObj)
-        }
-
-        this.joinRoom(socket, data);
-    }
-
-    add(socket: Socket, data: any){
         console.log(data);
+        if(!this.authenticateSocket(data.user,data.room)){
+            // socket.emit('error', {message: 'You are not in this room'});
+        }
+
+        const user = await this.authenticate(data.user);
+        const room = await Rooms.findOne({Id: data.room}).populate({path: 'Users', model: 'User'});
+        if(!room){
+            socket.emit('error', {message: "Invalid room provided."});
+            return;
+        }
+
+        // Leave all rooms the socket is currently in.
+        RoomManager.leaveRooms(socket);
+
+        // Connect to the room.
+        socket.join(room.Id);
+
+        // Send the connected event and roomData to the client.
+        socket.emit('connectedToRoom', room.toObject());
     }
 
+    private authenticateSocket(token: string, roomId: string) : Promise<boolean>{
+        return new Promise<boolean>(async (resolve, reject) => {
+            jwt.verify(token,'secret',(err, decoded:any) => {
+                if(err) throw err;
+
+                User.findOne({email: decoded.email}, async (err, user: IUser) => {
+                    const room: IRoom| null = await Rooms.findOne({Id: roomId}).populate({path: 'Users', model: 'User'});
+                    if(!room)
+                        return resolve(false);
+
+                    const inRoom = (room.Users.find((us) => us.toString() == user.toString()) != undefined);
+
+                    return resolve(inRoom);
+                });
+
+                return resolve(false);
+            });
+        });
+    }
+
+
+
+    static leaveRooms(socket:Socket){
+        for (let roomId in socket.rooms) {
+            socket.leave(roomId);
+        }
+        return;
+    }
     private authenticate(token: string): Promise<IUser>{
         return new Promise<IUser>((resolve, reject) => {
             jwt.verify(token,'secret',(err, decoded:any) => {

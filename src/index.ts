@@ -18,13 +18,17 @@ let AppInstance: App;
 require('./config/passport');
 
 
-AppInstance = new App([
+AppInstance = new App(5000);
+
+const server = AppInstance.listen();
+const client: WebTorrent.Instance = new WebTorrent();
+const io = require("socket.io")(server);
+
+AppInstance.initializeControllers([
     new UserController(),
     new StreamController(),
-    new RoomController()
-], 5000);
-
-
+    new RoomController(io)
+]);
 
 mongoose.connect("mongodb://localhost/test", {useUnifiedTopology: true, useNewUrlParser: true});
 mongoose.set('useFindAndModify', false);
@@ -37,9 +41,7 @@ const db: Connection = mongoose.connection;
 
 
 
-const client: WebTorrent.Instance = new WebTorrent();
-const server = AppInstance.listen();
-const io = require("socket.io")(server);
+
 const roomManager: RoomManager = new RoomManager(io);
 
 const videoTypes: Array<string> = [
