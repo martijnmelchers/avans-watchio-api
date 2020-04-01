@@ -1,5 +1,5 @@
 export class Room {
-    constructor(){
+	constructor() {
 
-    }
+	}
 }
