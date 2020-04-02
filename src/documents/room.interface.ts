@@ -32,7 +32,7 @@ RoomSchema.methods.setPassword = function (password: string) {
 
 
 RoomSchema.methods.validatePassword = function (password: string) {
-	const hash = crypto.pbkdf2Sync(password, this.Hash, 10000, 512, 'sha512').toString('hex');
+	const hash = crypto.pbkdf2Sync(password, this.Salt, 10000, 512, 'sha512').toString('hex');
 	return this.Hash === hash;
 };
 
