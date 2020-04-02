@@ -87,6 +87,8 @@ class RoomController {
 		const userObj = await Users.findOne({ email: user.email }).exec();
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 
+		console.log(roomId);
+
 
 		if (!user)
 			return res.sendStatus(400);
@@ -100,12 +102,16 @@ class RoomController {
 			console.log(password);
 			authorized = room.validatePassword(password);
 			console.log(authorized);
+			console.log('bruh');
 		}
 
 		if (!authorized)
 			return res.sendStatus(401);
 
-		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }).exec();
+		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }).populate({
+			path: 'Users',
+			model: 'User'
+		}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
