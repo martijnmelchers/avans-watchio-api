@@ -229,13 +229,12 @@ class RoomController {
 
         if(!userObj || !addedUserId)
             return res.sendStatus(400);
-
         if(user._id.toString() == room?.Owner.toString()) {
-            const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [addedUserId] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+                const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [addedUserId] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 
-            // @ts-ignore
-            this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());
-            return res.json(roomObj?.toJSON());
+                // @ts-ignore
+                this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());
+                return res.json(roomObj?.toJSON());
         }
 
         return res.sendStatus(401);
