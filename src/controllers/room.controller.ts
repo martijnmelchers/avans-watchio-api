@@ -139,7 +139,7 @@ class RoomController {
 			return res.sendStatus(500);
 
 
-		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
+		this._io?.in(roomObj.Id).emit('room:updated', roomObj.toJSON());
         this._io?.in(roomObj.Id).emit('room:user:leaved', userObj?.toJSON());
 
         return res.json(roomObj.toJSON());
