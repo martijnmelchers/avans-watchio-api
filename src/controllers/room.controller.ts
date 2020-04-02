@@ -159,7 +159,7 @@ class RoomController {
 
         Rooms.deleteOne({ Id: roomId }).then(() => {
             // Room has been deleted send event so connected users can deal with this.
-			this._io?.in(roomId).emit('roomDeleted');
+			this._io?.in(roomId).emit('room:deleted');
             return res.sendStatus(200);
 		});
 	};
