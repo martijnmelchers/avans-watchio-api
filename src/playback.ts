@@ -41,6 +41,26 @@ export class RoomManager {
 		socket.emit('connectedToRoom', room.toObject());
 	}
 
+
+
+	// Kick
+	async onKick(socket: Socket, data: {user: string, room: string, kickedUser: string}) {
+        if(!await this.authenticateSocket(data.user, data.room))
+            return socket.emit('error', {message: 'Not in this room'})
+
+        const user = await this.authenticate(data.user);
+        let room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users', model: 'User' }).exec();
+
+        if(user._id.toString() == room?.Owner.toString()){
+            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {_id: data.kickedUser}}}, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+            // @ts-ignore
+            return socket.broadcast.to(room.Id).emit('room:kicked', room);
+        }
+
+
+    }
+
+
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
 		socket.on('connectRoom', (data) => this.connectRoom(socket, data));

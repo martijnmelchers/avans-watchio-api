@@ -22,7 +22,7 @@ class RoomController {
 		this.router.get(this.path, auth.required, this.getRooms);
 		this.router.get(`${this.path}/page/:page`, auth.required, this.getRoomsPaging);
 		this.router.post(`${this.path}/:roomId`, auth.required, (req, res) => this.joinRoom(req, res));
-		this.router.post(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
+		this.router.delete(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
 		this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
 		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) =>this.deleteRoom(req, res));
