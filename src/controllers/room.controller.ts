@@ -105,7 +105,7 @@ class RoomController {
 		if (!authorized)
 			return res.sendStatus(401);
 
-		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }).exec();
+		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -124,7 +124,7 @@ class RoomController {
 		    res.statusCode = 400;
 		    return res.json({message: "Room owner cannot leave room"});
 		}
-		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }).exec();
+		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
