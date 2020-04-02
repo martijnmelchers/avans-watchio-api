@@ -87,8 +87,6 @@ class RoomController {
 		const userObj = await Users.findOne({ email: user.email }).exec();
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 
-		console.log(roomId);
-
 
 		if (!user)
 			return res.sendStatus(400);
@@ -102,16 +100,12 @@ class RoomController {
 			console.log(password);
 			authorized = room.validatePassword(password);
 			console.log(authorized);
-			console.log('bruh');
 		}
 
 		if (!authorized)
 			return res.sendStatus(401);
 
-		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }).populate({
-			path: 'Users',
-			model: 'User'
-		}).exec();
+		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -130,7 +124,7 @@ class RoomController {
 		    res.statusCode = 400;
 		    return res.json({message: "Room owner cannot leave room"});
 		}
-		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }).exec();
+		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -151,7 +145,7 @@ class RoomController {
         if(!room)
             return res.sendStatus(404);
 
-        if(room.Owner.toString() != user._id.toString())
+        if(room.Owner.toString() != userObj?._id.toString())
             return res.sendStatus(401);
 
         Rooms.deleteOne({ Id: roomId }).then(() => {
