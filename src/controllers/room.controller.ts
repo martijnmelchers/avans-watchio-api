@@ -28,6 +28,8 @@ class RoomController {
 		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) =>this.deleteRoom(req, res));
 
 
+
+		this.router.post(`${this.path}/roomId/users`, auth.required, (req, res) => this.inviteUser(req, res));
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
 		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, (req, res) => this.removeFromQueue(req, res));
@@ -185,7 +187,7 @@ class RoomController {
 		if (!room)
 			return res.sendStatus(500);
 
-		this._io?.in(room.Id).emit('roomChanged', room.toObject());
+		this._io?.in(room.Id).emit('room:queueAdded', room.toObject());
 		return res.json(room.toObject());
 	};
 
@@ -209,10 +211,35 @@ class RoomController {
                 return res.sendStatus(500);
 
 
-            this._io?.in(updated.Id).emit('roomChanged', updated);
+            this._io?.in(updated.Id).emit('room:queueRemoved', updated);
             return res.json(updated);
         });
 	};
+
+
+	inviteUser = async (req: Request, res: Response) => {
+        const roomId: string = req.params.roomId;
+        const room = await Rooms.findOne({ Id: roomId }).exec();
+        const addedUserId = req.body.Id;
+        if(!room)
+            return res.sendStatus(404);
+
+        const user: IUser | undefined = req.user as IUser;
+        const userObj = await Users.findOne({ email: user.email }).exec();
+
+        if(!userObj || !addedUserId)
+            return res.sendStatus(400);
+
+        if(user._id.toString() == room?.Owner.toString()) {
+            const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [addedUserId] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+
+            // @ts-ignore
+            this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());
+            return res.json(roomObj?.toJSON());
+        }
+
+        return res.sendStatus(401);
+    };
 
 
 	private isInRoom = async (user: IUser, roomId: string): Promise<boolean> => {
