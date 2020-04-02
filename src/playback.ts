@@ -56,8 +56,6 @@ export class RoomManager {
             // @ts-ignore
             return socket.broadcast.to(room.Id).emit('room:kicked', room);
         }
-
-
     }
 
 
