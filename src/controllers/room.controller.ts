@@ -197,14 +197,14 @@ class RoomController {
 		const posNum = Number(req.params.queueItemPos);
 
 		// @ts-ignore
+		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true }).populate({path: 'Users', model: 'User'},(err, updated) => {
+            if (!updated)
+                return res.sendStatus(500);
 
-		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true }, (err, updated) => {
-			if (!updated)
-				return res.sendStatus(500);
 
-			this._io?.in(updated.Id).emit('roomChanged', updated);
-			return res.json(updated);
-		});
+            this._io?.in(updated.Id).emit('roomChanged', updated);
+            return res.json(updated);
+        });
 	};
 
 
