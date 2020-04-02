@@ -145,7 +145,7 @@ class RoomController {
         if(!room)
             return res.sendStatus(404);
 
-        if(room.Owner.toString() != user._id.toString())
+        if(room.Owner.toString() != userObj?._id.toString())
             return res.sendStatus(401);
 
         Rooms.deleteOne({ Id: roomId }).then(() => {
