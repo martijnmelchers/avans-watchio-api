@@ -116,7 +116,7 @@ class RoomController {
 		if (!roomObj)
 			return res.sendStatus(500);
 
-		this._io?.in(roomObj.Id).emit('roomChanged', roomObj);
+		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
 		return res.json(roomObj);
 	};
 
@@ -136,7 +136,7 @@ class RoomController {
 			return res.sendStatus(500);
 
 
-		this._io?.in(roomObj.Id).emit('roomChanged', roomObj);
+		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
 		return res.json(roomObj);
 	};
 

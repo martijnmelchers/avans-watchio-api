@@ -38,7 +38,7 @@ export class RoomManager {
 		socket.join(room.Id);
 
 		// Send the connected event and roomData to the client.
-		socket.emit('connectedToRoom', room.toObject());
+		socket.emit('room:connected', room.toObject());
 	}
 
 
