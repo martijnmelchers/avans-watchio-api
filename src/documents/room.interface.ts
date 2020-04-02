@@ -9,8 +9,8 @@ export interface IRoom extends Document {
 	Queue: [QueueItemSchema];
 	Users: [Schema.Types.ObjectId];
 	Owner: Schema.Types.ObjectId;
-	hash: string;
-	salt: string;
+	Hash: string;
+	Salt: string;
 	setPassword: Function;
 	validatePassword: Function;
 }

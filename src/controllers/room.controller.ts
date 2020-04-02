@@ -96,8 +96,10 @@ class RoomController {
 
 
 		let authorized: boolean = true;
-		if (room.hash) {
+		if (room.Hash) {
+			console.log(password);
 			authorized = room.validatePassword(password);
+			console.log(authorized);
 		}
 
 		if (!authorized)
