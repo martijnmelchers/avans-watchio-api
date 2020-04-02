@@ -27,9 +27,10 @@ class RoomController {
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
 		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) =>this.deleteRoom(req, res));
 
-
-
+        // User routes
+		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, (req, res) => this.kickUser(req,res));
 		this.router.post(`${this.path}/roomId/users`, auth.required, (req, res) => this.inviteUser(req, res));
+
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
 		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, (req, res) => this.removeFromQueue(req, res));
@@ -112,7 +113,6 @@ class RoomController {
 
 		if (!authorized)
 			return res.sendStatus(401);
-
 
 		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: userObj?._id}] } }, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
 		if (!roomObj)
@@ -244,6 +244,27 @@ class RoomController {
         }
 
         return res.sendStatus(401);
+    };
+
+
+	kickUser = async (req: Request, res: Response) => {
+	    const user = req.user as IUser;
+	    const email = req.params.userEmail;
+	    let room = await Rooms.findOne({Id: req.params.roomId}).populate({path: 'Users.User', model: 'User'}).exec();
+	    if(!room)
+	        return res.sendStatus(404);
+
+	    const kickedUser = await Users.findOne({email: email}).exec();
+        if(!kickedUser)
+            return res.sendStatus(404);
+
+        if(user._id.toString() == room?.Owner.toString()){
+            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {'User.email': kickedUser.email}}}, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
+            // @ts-ignore
+            socket.broadcast.to(room.Id).emit('room:updated', room?.toJSON());
+            // @ts-ignore
+            socket.broadcast.to(room.Id).emit('room:user:kicked',kickedUser.toJSON());
+        }
     };
 
 
