@@ -20,12 +20,13 @@ class RoomController {
 
 	public intializeRoutes() {
 		this.router.get(this.path, auth.required, this.getRooms);
-		this.router.get(`${this.path}/:page`, auth.required, this.getRoomsPaging);
+		this.router.get(`${this.path}/page/:page`, auth.required, this.getRoomsPaging);
 		this.router.post(`${this.path}/:roomId`, auth.required, (req, res) => this.joinRoom(req, res));
 		this.router.post(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
 		this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
 		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) =>this.deleteRoom(req, res));
+
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
@@ -42,13 +43,19 @@ class RoomController {
 
 	getRoom = async (req: Request, res: Response) => {
 		if (!req.params.roomId) res.sendStatus(422);
+        const user: IUser | undefined = req.user as IUser;
+        console.log(user);
+        const userObj = await Users.findOne({ email: user.email }).exec();
 
 		try {
 			const room = await Rooms.findOne({ Id: req.params.roomId }).populate({ path: 'Users', model: 'User' });
+			if(!room)
+			    return res.sendStatus(404);
 
-			if (room == null) {
-				res.sendStatus(404);
-			}
+			// @ts-ignore
+            if(!room.Users.find((user) => user.email == userObj?.email)){
+			    return res.sendStatus(401)
+            }
 
 			res.json(room);
 		} catch (e) {
