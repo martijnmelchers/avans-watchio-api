@@ -25,7 +25,7 @@ class RoomController {
 		this.router.post(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
 		this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
-		this.router.delete(`${this.path}/:roomId`, auth.required, this.deleteRoom);
+		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) =>this.deleteRoom(req, res));
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
@@ -127,8 +127,8 @@ class RoomController {
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 
 		if (room?.Owner.toString() == userObj?._id.toString()) {
-			await Rooms.findByIdAndDelete(room?._id).exec();
-			return res.sendStatus(200);
+		    res.statusCode = 400;
+		    return res.json({message: "Room owner cannot leave room"});
 		}
 		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }).exec();
 		if (!roomObj)
@@ -139,14 +139,25 @@ class RoomController {
 		return res.json(roomObj);
 	};
 
-	deleteRoom = (req: Request, res: Response) => {
+	deleteRoom = async (req: Request, res: Response) => {
 		if (!req.params.roomId) res.sendStatus(422);
 		const roomId = req.params.roomId;
 
-		Rooms.deleteOne({ Id: roomId }).then(() => {
-			return res.sendStatus(200);
-		}).catch((err) => {
-			return res.sendStatus(404);
+        const user: IUser | undefined = req.user as IUser;
+        const userObj = await Users.findOne({ email: user.email }).exec();
+
+
+        const room = await Rooms.findOne({ Id: roomId }).exec();
+        if(!room)
+            return res.sendStatus(404);
+
+        if(room.Owner.toString() != user._id.toString())
+            return res.sendStatus(401);
+
+        Rooms.deleteOne({ Id: roomId }).then(() => {
+            // Room has been deleted send event so connected users can deal with this.
+			this._io?.in(roomId).emit('roomDeleted');
+            return res.sendStatus(200);
 		});
 	};
 
@@ -189,9 +200,10 @@ class RoomController {
 		if (!this.isInRoom(user, req.params.roomId))
 			return res.sendStatus(401);
 
-
 		const posNum = Number(req.params.queueItemPos);
+
 		// @ts-ignore
+
 		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true }, (err, updated) => {
 			if (!updated)
 				return res.sendStatus(500);
