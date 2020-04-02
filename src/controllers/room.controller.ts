@@ -119,7 +119,8 @@ class RoomController {
 			return res.sendStatus(500);
 
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
-		return res.json(roomObj);
+        this._io?.in(roomObj.Id).emit('room:userJoined', userObj?.toJSON());
+        return res.json(roomObj);
 	};
 
 
@@ -139,7 +140,9 @@ class RoomController {
 
 
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
-		return res.json(roomObj);
+        this._io?.in(roomObj.Id).emit('room:userLeaved', userObj?.toJSON());
+
+        return res.json(roomObj);
 	};
 
 	deleteRoom = async (req: Request, res: Response) => {
@@ -160,6 +163,7 @@ class RoomController {
         Rooms.deleteOne({ Id: roomId }).then(() => {
             // Room has been deleted send event so connected users can deal with this.
 			this._io?.in(roomId).emit('room:deleted');
+
             return res.sendStatus(200);
 		});
 	};
@@ -234,6 +238,8 @@ class RoomController {
 
                 // @ts-ignore
                 this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());
+                // @ts-ignore
+                this._io?.in(roomObj.Id).emit('room:updated', roomObj);
                 return res.json(roomObj?.toJSON());
         }
 
