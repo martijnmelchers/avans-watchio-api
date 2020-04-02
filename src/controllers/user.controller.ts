@@ -86,7 +86,6 @@ class UserController {
 			if (user) {
 				// @ts-ignore
                 return Room.find({ 'Users.User': user._id}).then(rooms => {
-                    console.log(rooms);
 					return res.json(rooms);
 				});
 			} else {

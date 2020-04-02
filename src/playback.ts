@@ -1,10 +1,11 @@
-import { Socket } from "socket.io";
+import SocketIO, { Socket } from "socket.io";
 import * as jwt from 'jsonwebtoken';
 import User, { IUser } from './documents/user.interface';
 import Rooms, { IRoom } from './documents/room.interface';
 
 export class RoomManager {
-	private _io: any;
+	private _io: SocketIO.Server;
+	private socketInfo: { socketId: string, userId: string, roomId: string }[] = [];
 
 	constructor(io: any) {
 		this._io = io;
@@ -34,17 +35,29 @@ export class RoomManager {
 		// Leave all rooms the socket is currently in.
 		RoomManager.leaveRooms(socket);
 
+		console.log(`${user.email} connected to room ${room.Id}`);
+
+		// Set the id of the socket to the id of the user.
+		this.socketInfo.push({
+			socketId: socket.id,
+			userId: user._id,
+			roomId: room.Id
+		});
+
 		// Connect to the room.
 		socket.join(room.Id);
 
 		// Send the connected event and roomData to the client.
 		socket.emit('room:connected', room.toObject());
+		socket.emit('room:user:online', this.getOnlineUsers(room.Id));
+		this._io.in(room.Id).emit('room:user:online', this.getOnlineUsers(room.Id));
 	}
 
 
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
 		socket.on('room:connect', (data) => this.connectRoom(socket, data));
+		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
 
 	private authenticateSocket(token: string, roomId: string): Promise<boolean> {
@@ -80,6 +93,28 @@ export class RoomManager {
 				});
 			});
 		});
+	}
+
+	private getOnlineUsers(roomId: string): string[] {
+		const connectedUsers: string[] = [];
+		const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId);
+
+		for (const socket of connectedSockets)
+			connectedUsers.push(socket.userId);
+
+		return connectedUsers;
+	}
+
+	private disconnectRoom(socket: SocketIO.Socket) {
+		const socketInfo = this.socketInfo.find(x => x.socketId == socket.id);
+
+		if (!socketInfo)
+			return;
+
+		console.log(`User disconnected from room ${socketInfo.roomId}`);
+
+		this.socketInfo.splice(this.socketInfo.indexOf(socketInfo), 1);
+		this._io.in(socketInfo.roomId).emit('room:user:online', this.getOnlineUsers(socketInfo.roomId));
 	}
 }
 

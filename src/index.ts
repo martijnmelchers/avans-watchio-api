@@ -67,11 +67,7 @@ client.on("torrent", (a) => {
 
 
 db.once("open", () => {
-	console.log("Boom! We're connected");
-});
-
-io.on("connection", (socket: SocketIO.Socket) => {
-	console.log(`User connected! ${socket.id}`);
+	console.log("Connected to the database!");
 });
 
 
