@@ -14,7 +14,6 @@ const RoleSchema: Schema = new Schema({
 export interface IUser extends Document {
 	email: string;
 	hash: string;
-	roles: [Schema.Types.ObjectId],
 	salt: string;
 	setPassword: Function,
 	validatePassword: Function,
@@ -26,7 +25,6 @@ export const UserSchema: Schema = new Schema({
 	email: { type: String, required: true, unique: true },
 	hash: { type: String, required: true },
 	salt: { type: String, required: true },
-	role: { type: [RoleSchema], required: true }
 });
 
 

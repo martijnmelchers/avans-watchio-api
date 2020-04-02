@@ -25,7 +25,7 @@ export class RoomManager {
 		}
 
 		const user = await this.authenticate(data.user);
-		const room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users', model: 'User' });
+		const room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users.User', model: 'User' });
 		if (!room) {
 			socket.emit('room:error', { message: "Invalid room provided." });
 			return;
@@ -49,12 +49,12 @@ export class RoomManager {
             return socket.emit('error', {message: 'Not in this room'})
 
         const user = await this.authenticate(data.user);
-        let room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users', model: 'User' }).exec();
+        let room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users.User', model: 'User' }).exec();
 
         if(user._id.toString() == room?.Owner.toString()){
-            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {_id: data.kickedUser}}}, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {User: data.kickedUser}}}, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
             // @ts-ignore
-            return socket.broadcast.to(room.Id).emit('room:kicked', room);
+            return socket.broadcast.to(room.Id).emit('room:user:kicked', (await Users.findById(data.kickedUser).exec()).toJSON());
         }
     }
 

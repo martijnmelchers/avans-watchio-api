@@ -119,7 +119,7 @@ class RoomController {
 			return res.sendStatus(500);
 
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
-        this._io?.in(roomObj.Id).emit('room:userJoined', userObj?.toJSON());
+        this._io?.in(roomObj.Id).emit('room:user:joined', userObj?.toJSON());
         return res.json(roomObj.toJSON());
 	};
 
@@ -140,7 +140,7 @@ class RoomController {
 
 
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
-        this._io?.in(roomObj.Id).emit('room:userLeaved', userObj?.toJSON());
+        this._io?.in(roomObj.Id).emit('room:user:leaved', userObj?.toJSON());
 
         return res.json(roomObj.toJSON());
 	};
@@ -191,7 +191,7 @@ class RoomController {
 		if (!room)
 			return res.sendStatus(500);
 
-		this._io?.in(room.Id).emit('room:queueAdded', room.toObject());
+		this._io?.in(room.Id).emit('room:queue:added', room.toObject());
 		return res.json(room.toJSON());
 	};
 
@@ -215,7 +215,7 @@ class RoomController {
                 return res.sendStatus(500);
 
 
-            this._io?.in(updated.Id).emit('room:queueRemoved', updated);
+            this._io?.in(updated.Id).emit('room:queue:removed', updated);
             return res.json(updated.toJSON());
         });
 	};
@@ -237,7 +237,7 @@ class RoomController {
                 const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: addedUserId}] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 
                 // @ts-ignore
-                this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());
+                this._io.in(roomObj.Id).emit('room:user:joined', roomObj?.toJSON());
                 // @ts-ignore
                 this._io?.in(roomObj.Id).emit('room:updated', roomObj);
                 return res.json(roomObj?.toJSON());
