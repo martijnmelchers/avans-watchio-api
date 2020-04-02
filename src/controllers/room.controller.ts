@@ -46,20 +46,20 @@ class RoomController {
 	getRoom = async (req: Request, res: Response) => {
 		if (!req.params.roomId) res.sendStatus(422);
         const user: IUser | undefined = req.user as IUser;
-        console.log(user);
         const userObj = await Users.findOne({ email: user.email }).exec();
 
 		try {
-			const room = await Rooms.findOne({ Id: req.params.roomId }).populate({ path: 'Users', model: 'User' });
+			const room = await Rooms.findOne({ Id: req.params.roomId }).populate({ path: 'Users.User', model: 'User' }).exec();
 			if(!room)
 			    return res.sendStatus(404);
 
+
 			// @ts-ignore
-            if(!room.Users.find((user) => user.email == userObj?.email)){
+            if(!room.Users.find((user) => user.User.email == userObj?.email)){
 			    return res.sendStatus(401)
             }
 
-			res.json(room);
+			res.json(room.toJSON());
 		} catch (e) {
 			console.log("An error occurred while getting the room!");
 		}
@@ -75,16 +75,18 @@ class RoomController {
 		room = room as IRoom;
 
 		const roomModel = new Rooms(room);
-		if (password)
-			roomModel.setPassword(password);
+		if (password){
+            roomModel.setPassword(password);
+        }
 
 		roomModel.Owner = userObj?.toObject();
-		roomModel.Users = [userObj?.toObject()];
+		// @ts-ignore
+        roomModel.Users = [{User: userObj?._id}];
 		const roomObj: IRoom = await (await Rooms.create(roomModel)).populate({
-			path: 'Users',
-			model: 'User'
-		}).execPopulate();
-		res.json(roomObj);
+            path: 'Users.User',
+            model: 'User'
+        }).execPopulate();
+        res.json(roomObj.toJSON());
 	};
 
 	joinRoom = async (req: Request, res: Response) => {
@@ -96,7 +98,6 @@ class RoomController {
 		const userObj = await Users.findOne({ email: user.email }).exec();
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 
-
 		if (!user)
 			return res.sendStatus(400);
 
@@ -105,22 +106,21 @@ class RoomController {
 
 
 		let authorized: boolean = true;
-		if (room.Hash) {
-			console.log(password);
+		if (room.Password) {
 			authorized = room.validatePassword(password);
-			console.log(authorized);
 		}
 
 		if (!authorized)
 			return res.sendStatus(401);
 
-		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [userObj?._id] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+
+		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: userObj?._id}] } }, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
         this._io?.in(roomObj.Id).emit('room:userJoined', userObj?.toJSON());
-        return res.json(roomObj);
+        return res.json(roomObj.toJSON());
 	};
 
 
@@ -134,7 +134,7 @@ class RoomController {
 		    res.statusCode = 400;
 		    return res.json({message: "Room owner cannot leave room"});
 		}
-		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { $in: [userObj?.toObject()] } } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -142,7 +142,7 @@ class RoomController {
 		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
         this._io?.in(roomObj.Id).emit('room:userLeaved', userObj?.toJSON());
 
-        return res.json(roomObj);
+        return res.json(roomObj.toJSON());
 	};
 
 	deleteRoom = async (req: Request, res: Response) => {
@@ -192,7 +192,7 @@ class RoomController {
 			return res.sendStatus(500);
 
 		this._io?.in(room.Id).emit('room:queueAdded', room.toObject());
-		return res.json(room.toObject());
+		return res.json(room.toJSON());
 	};
 
 
@@ -216,7 +216,7 @@ class RoomController {
 
 
             this._io?.in(updated.Id).emit('room:queueRemoved', updated);
-            return res.json(updated);
+            return res.json(updated.toJSON());
         });
 	};
 
@@ -234,7 +234,7 @@ class RoomController {
         if(!userObj || !addedUserId)
             return res.sendStatus(400);
         if(user._id.toString() == room?.Owner.toString()) {
-                const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [addedUserId] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+                const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: addedUserId}] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
 
                 // @ts-ignore
                 this._io.in(roomObj.Id).emit('room:userJoined', roomObj?.toJSON());

@@ -84,7 +84,9 @@ class UserController {
 
 		Users.findOne({ email: user.email }, (err: any, user) => {
 			if (user) {
-				return Room.find({ Users: { $in: [user.toObject()] } }).then(rooms => {
+				// @ts-ignore
+                return Room.find({ 'Users.User': user._id}).then(rooms => {
+                    console.log(rooms);
 					return res.json(rooms);
 				});
 			} else {
