@@ -61,7 +61,7 @@ export class RoomManager {
 
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
-		socket.on('connectRoom', (data) => this.connectRoom(socket, data));
+		socket.on('room:connect', (data) => this.connectRoom(socket, data));
 	}
 
 	private authenticateSocket(token: string, roomId: string): Promise<boolean> {
