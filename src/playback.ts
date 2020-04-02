@@ -20,8 +20,6 @@ export class RoomManager {
 
 	// Checks if the user is part of this room and connects to it.
 	async connectRoom(socket: Socket, data: { user: string, room: string }) {
-
-		console.log(data);
 		if (!this.authenticateSocket(data.user, data.room)) {
 			// socket.emit('error', {message: 'You are not in this room'});
 		}

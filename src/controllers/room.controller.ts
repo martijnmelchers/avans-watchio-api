@@ -20,6 +20,7 @@ class RoomController {
 
 	public intializeRoutes() {
 		this.router.get(this.path, auth.required, this.getRooms);
+		this.router.get(`${this.path}/:page`, auth.required, this.getRoomsPaging);
 		this.router.post(`${this.path}/:roomId`, auth.required, (req, res) => this.joinRoom(req, res));
 		this.router.post(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
 		this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
@@ -32,7 +33,11 @@ class RoomController {
 	}
 
 	getRooms = async (req: Request, res: Response) => {
-		res.json(await Rooms.find().populate({ path: 'Users', model: 'User' }));
+		res.json(await Rooms.find());
+	};
+
+	getRoomsPaging = async (req: Request, res: Response) => {
+		res.json(await Rooms.find().skip((Number(req.params.page) - 1) * 20).limit(20));
 	};
 
 	getRoom = async (req: Request, res: Response) => {
@@ -61,10 +66,9 @@ class RoomController {
 		room = room as IRoom;
 
 		const roomModel = new Rooms(room);
-		if (password) {
-			console.log(password);
+		if (password)
 			roomModel.setPassword(password);
-		}
+
 		roomModel.Owner = userObj?.toObject();
 		roomModel.Users = [userObj?.toObject()];
 		const roomObj: IRoom = await (await Rooms.create(roomModel)).populate({
@@ -114,10 +118,7 @@ class RoomController {
 		const userObj = await Users.findOne({ email: user.email }).exec();
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 
-
-		console.log(room?.Owner, userObj?._id);
 		if (room?.Owner.toString() == userObj?._id.toString()) {
-			console.log("TRUEEEEE");
 			await Rooms.findByIdAndDelete(room?._id).exec();
 			return res.sendStatus(200);
 		}
@@ -136,7 +137,6 @@ class RoomController {
 
 		Rooms.deleteOne({ Id: roomId }).then(() => {
 			return res.sendStatus(200);
-
 		}).catch((err) => {
 			return res.sendStatus(404);
 		});

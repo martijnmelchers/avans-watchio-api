@@ -61,10 +61,6 @@ class StreamController {
 			// no support for multi-range request, just use the first range
 			range = range[0];
 
-			// @ts-ignore
-
-			console.log(`START: ${range.start} END: ${range.end}, length: ${this._file.length}`);
-
 			res.setHeader(
 				'Content-Range',
 				// @ts-ignore

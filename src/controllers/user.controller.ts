@@ -67,15 +67,15 @@ class UserController {
 			if (err) {
 				return next(err);
 			}
-			console.log(err, passportUser);
+
 			if (passportUser) {
 				const user = passportUser;
 				user.token = passportUser.generateJWT();
 
 				return res.json({ user: user.toAuthJSON() });
+			} else {
+				return res.status(401).json({ user: null });
 			}
-
-			return res.status(400);
 		})(req, res, next);
 	};
 
@@ -83,7 +83,6 @@ class UserController {
 		const user: IUser | undefined = req.user as IUser;
 
 		Users.findOne({ email: user.email }, (err: any, user) => {
-			console.log(err);
 			if (user) {
 				return Room.find({ Users: { $in: [user.toObject()] } }).then(rooms => {
 					return res.json(rooms);
