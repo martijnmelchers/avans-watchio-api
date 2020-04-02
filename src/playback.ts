@@ -27,7 +27,7 @@ export class RoomManager {
 		const user = await this.authenticate(data.user);
 		const room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users', model: 'User' });
 		if (!room) {
-			socket.emit('error', { message: "Invalid room provided." });
+			socket.emit('room:error', { message: "Invalid room provided." });
 			return;
 		}
 
