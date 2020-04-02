@@ -51,6 +51,14 @@ UserSchema.methods.generateJWT = function () {
 	}, 'secret');
 };
 
+UserSchema.set('toJSON', {
+    transform: function(doc, ret, options) {
+        delete ret.Hash;
+        delete ret.Salt;
+        return ret;
+    }
+});
+
 UserSchema.methods.toAuthJSON = function () {
 	return {
 		_id: this._id,

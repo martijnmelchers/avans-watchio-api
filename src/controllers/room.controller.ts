@@ -118,7 +118,7 @@ class RoomController {
 		if (!roomObj)
 			return res.sendStatus(500);
 
-		this._io?.in(roomObj.Id).emit('room:updated', roomObj);
+		this._io?.in(roomObj.Id).emit('room:updated', roomObj.toJSON());
         this._io?.in(roomObj.Id).emit('room:user:joined', userObj?.toJSON());
         return res.json(roomObj.toJSON());
 	};
