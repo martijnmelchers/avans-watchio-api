@@ -30,7 +30,9 @@ class RoomController {
 
         // User routes
 		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, (req, res) => this.kickUser(req,res));
-		this.router.post(`${this.path}/roomId/users`, auth.required, (req, res) => this.inviteUser(req, res));
+        this.router.get(`${this.path}/:roomId/users/:email`, auth.required, (req, res) => this.getUser(req,res));
+
+        this.router.post(`${this.path}/roomId/users`, auth.required, (req, res) => this.inviteUser(req, res));
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
@@ -51,7 +53,10 @@ class RoomController {
         const userObj = await Users.findOne({ email: user.email }).exec();
 
 		try {
-			const room = await Rooms.findOne({ Id: req.params.roomId }).populate({ path: 'Users.User', model: 'User' }).exec();
+			const room = await Rooms.findOne({ Id: req.params.roomId })
+                .populate({ path: 'Users.User', model: 'User' })
+                .populate({path: 'Users.Roles', model: 'Role'})
+                .exec();
 			if(!room)
 			    return res.sendStatus(404);
 
@@ -233,6 +238,13 @@ class RoomController {
         });
 	};
 
+
+	getUser = async (req: Request, res: Response) => {
+        if (!req.params.roomId || !req.params.email) res.sendStatus(400);
+
+        const user = await Users.findOne({email: req.params.email}).exec();
+        return res.json(user?.toJSON());
+    };
 
 	inviteUser = async (req: Request, res: Response) => {
         const roomId: string = req.params.roomId;
