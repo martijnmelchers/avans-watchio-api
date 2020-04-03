@@ -5,6 +5,7 @@ import auth from '../config/auth';
 import passport from 'passport';
 import Room from '../documents/room.interface';
 import jwt from 'jsonwebtoken';
+import {TmdbService} from '../services/tmdb.service';
 
 class UserController {
 	public path = '/users';
@@ -28,6 +29,14 @@ class UserController {
         this.router.get(`${this.path}/facebook`, passport.authenticate("facebook", {
             scope: ['email']
         }));
+
+
+
+        this.router.get(`${this.path}/test`, auth.optional, async (req, res) => {
+                let result = await TmdbService.searchItems("Pulp Fiction");
+                console.log(result.total_results);
+                res.json(result);
+        });
 	}
 
 	createUser = (req: express.Request, res: express.Response) => {

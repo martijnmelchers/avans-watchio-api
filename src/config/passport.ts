@@ -19,9 +19,9 @@ passport.use(new LocalStrategy({
 }));
 
 passport.use(new GoogleStrategy({
-        clientID:     "100369552874-hn54n3km6ddufj2mh5pmcr6qtibr14kh.apps.googleusercontent.com",
-        clientSecret: "Yhsk6Y-_OBz3TXDIBZZHdjXg",
-        callbackURL: "http://localhost:5000/users/google/callback",
+        clientID:  process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID : "",
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET ? process.env.GOOGLE_CLIENT_SECRET : "",
+        callbackURL: process.env.GOOGLE_CALLBACK_URL ? process.env.GOOGLE_CALLBACK_URL : "",
     },
     async (accessToken:any, refreshToken:any, profile:any, done: any) =>  {
 
@@ -49,9 +49,9 @@ passport.use(new GoogleStrategy({
 ));
 
 passport.use(new FacebookStrategy({
-        callbackURL: 'http://localhost:5000/users/facebook/callback',
-        clientID: "572379310045978",
-        clientSecret: "6d1c4e86d2354ea930ba9b29a9d6eaba",
+        clientID:  process.env.FACEBOOK_CLIENT_ID ? process.env.FACEBOOK_CLIENT_ID : "",
+        clientSecret: process.env.FACEBOOK_CLIENT_SECRET ? process.env.FACEBOOK_CLIENT_SECRET : "",
+        callbackURL: process.env.FACEBOOK_CALLBACK_URL ? process.env.FACEBOOK_CALLBACK_URL : "",
         profileFields: ['email']
     },
     async (accessToken, refreshToken, profile, done) => {
