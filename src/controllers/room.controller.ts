@@ -279,7 +279,7 @@ class RoomController {
 
 	kickUser = async (req: Request, res: Response) => {
 	    const user = req.user as IUser;
-	    const email = req.params.userEmail;
+	    const email = req.params.email;
 	    let room = await Rooms.findOne({Id: req.params.roomId}).populate({path: 'Users.User', model: 'User'}).exec();
 	    if(!room)
 	        return res.sendStatus(404);
@@ -300,7 +300,6 @@ class RoomController {
             return res.json(room?.toJSON());
         }
     };
-
 
 
 
