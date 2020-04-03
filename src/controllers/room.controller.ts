@@ -93,6 +93,7 @@ class RoomController {
 			path: 'Users.User',
 			model: 'User'
 		}).execPopulate();
+
 		res.json(roomObj.toJSON());
 	};
 
