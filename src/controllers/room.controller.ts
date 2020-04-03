@@ -1,7 +1,8 @@
 import { default as express, Request, Response } from 'express';
 import Rooms, { IRoom } from '../documents/room.interface';
 import auth from '../config/auth';
-import Users, { IUser } from '../documents/user.interface';
+import Users,{ IUser} from '../documents/user.interface';
+import Roles,{ IRole } from '../documents/role.interface'
 import { IQueueItem } from '../documents/queue.interface';
 import { Server } from 'socket.io';
 import App from '../app';
@@ -114,7 +115,11 @@ class RoomController {
 		if (!authorized)
 			return res.sendStatus(401);
 
-		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: userObj?._id}] } }, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
+		const defaultRole = await this.getRole("Viewer");
+		const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles: [defaultRole._id], User: userObj?._id}] } }, {new: true})
+            .populate({path: 'Users.User', model: 'User'})
+            .populate({path: 'Users.Roles', model: 'Role'})
+            .exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -134,7 +139,10 @@ class RoomController {
 		    res.statusCode = 400;
 		    return res.json({message: "Room owner cannot leave room"});
 		}
-		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
+		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, {new: true})
+            .populate({path: 'Users.User', model: 'User'})
+            .populate({path: 'Users.Roles', model: 'Role'})
+            .exec();
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -211,7 +219,10 @@ class RoomController {
 		const posNum = Number(req.params.queueItemPos);
 
 		// @ts-ignore
-		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true }).populate({path: 'Users', model: 'User'},(err, updated) => {
+        Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true })
+            .populate({path: 'Users.User', model: 'User'})
+            // @ts-ignore
+            .populate({path: 'Users.Roles', model: 'Role'},(err, updated) => {
             if (!updated)
                 return res.sendStatus(500);
 
@@ -238,7 +249,10 @@ class RoomController {
 
 
         if(user._id.toString() == room?.Owner.toString()) {
-                const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: addedUserId}] } }, {new: true}).populate({path: 'Users', model: 'User'}).exec();
+                const roomObj = await Rooms.findByIdAndUpdate(room._id, { $addToSet: { Users: [{Roles:[], User: addedUserId}] } }, {new: true})
+                    .populate({path: 'Users.User', model: 'User'})
+                    .populate({path: 'Users.Roles', model: 'Role'})
+                    .exec();
 
                 // @ts-ignore
                 this._io.in(roomObj.Id).emit('room:user:joined', userObj?.toJSON());
@@ -263,7 +277,9 @@ class RoomController {
             return res.sendStatus(404);
 
         if(user._id.toString() == room?.Owner.toString()){
-            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {'User.email': kickedUser.email}}}, {new: true}).populate({path: 'Users.User', model: 'User'}).exec();
+            room = await Rooms.findByIdAndUpdate(room?._id, {$pull: {Users: {'User.email': kickedUser.email}}}, {new: true})
+                .populate({path: 'Users.User', model: 'User'})
+                .exec();
             // @ts-ignore
             socket.broadcast.to(room.Id).emit('room:updated', room?.toJSON());
             // @ts-ignore
@@ -273,6 +289,17 @@ class RoomController {
         }
     };
 
+
+
+
+	private getRole(roleName:string):Promise<IRole>{
+	    return new Promise<IRole>((resolve, reject) => {
+            Roles.findOne({Name: roleName}, (err: any, room: any) => {
+                if(err) reject(err);
+                resolve(room);
+            })
+        });
+    }
 
 	private isInRoom = async (user: IUser, roomId: string): Promise<boolean> => {
 		return new Promise<boolean>(async (resolve, reject) => {

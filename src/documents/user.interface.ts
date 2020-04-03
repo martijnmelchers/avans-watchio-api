@@ -2,13 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 
-export interface IRole extends Document {
-	Name: string;
-}
 
-const RoleSchema: Schema = new Schema({
-	Name: { type: String, required: true }
-});
 
 
 export interface IUser extends Document {
