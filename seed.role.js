@@ -18,13 +18,12 @@ const RoleSchema = {
     PermissionLevel: {type: Number,  required: true, default: 1}
 };
 
-mongoose.connect("mongodb://localhost/test");
+mongoose.connect("mongodb://localhost/test").then(r => {
+    var model = mongoose.model('Role', RoleSchema, 'roles');
 
-
-
-mongoose.model('Role', RoleSchema, 'roles');
-mongoose.model('Role').deleteMany({}, (err, res) =>{
-    mongoose.model('Role').create(data);
+    model.create(data).then(r => {
+        process.exit();
+    });
 });
 
-process.exit();
+
