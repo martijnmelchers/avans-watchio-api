@@ -5,7 +5,7 @@ import Rooms, { IRoom } from './documents/room.interface';
 
 export class RoomManager {
 	private _io: SocketIO.Server;
-	private socketInfo: { socketId: string, userId: string, roomId: string }[] = [];
+	private socketInfo: { socketId: string, userId: string, roomId: string, ready: boolean }[] = [];
 
 	constructor(io: any) {
 		this._io = io;
@@ -41,7 +41,8 @@ export class RoomManager {
 		this.socketInfo.push({
 			socketId: socket.id,
 			userId: user._id,
-			roomId: room.Id
+			roomId: room.Id,
+			ready: false
 		});
 
 		// Connect to the room.
@@ -51,12 +52,14 @@ export class RoomManager {
 		socket.emit('room:connected', room.toObject());
 		socket.emit('room:user:online', this.getOnlineUsers(room.Id));
 		this._io.in(room.Id).emit('room:user:online', this.getOnlineUsers(room.Id));
+		this._io.in(room.Id).emit('room:user:ready', this.getReadyUsers(room.Id));
 	}
 
 
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
 		socket.on('room:connect', (data) => this.connectRoom(socket, data));
+		socket.on('room:user:ready', (ready) => this.updateReady(socket, ready))
 		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
 
@@ -105,6 +108,16 @@ export class RoomManager {
 		return connectedUsers;
 	}
 
+	private getReadyUsers(roomId: string) {
+		const readyUsers: string[] = [];
+		const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId && x.ready);
+
+		for (const socket of connectedSockets)
+			readyUsers.push(socket.userId);
+
+		return readyUsers;
+	}
+
 	private disconnectRoom(socket: SocketIO.Socket) {
 		const socketInfo = this.socketInfo.find(x => x.socketId == socket.id);
 
@@ -114,7 +127,21 @@ export class RoomManager {
 		console.log(`User disconnected from room ${socketInfo.roomId}`);
 
 		this.socketInfo.splice(this.socketInfo.indexOf(socketInfo), 1);
+
+		// Send ready and online events so the clients can be updated.
 		this._io.in(socketInfo.roomId).emit('room:user:online', this.getOnlineUsers(socketInfo.roomId));
+		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
+	}
+
+	private updateReady(socket: SocketIO.Socket, ready: boolean) {
+		const socketInfo = this.socketInfo.find(x => x.socketId == socket.id);
+
+		if (!socketInfo)
+			return;
+
+
+		socketInfo.ready = ready;
+		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
 	}
 }
 
