@@ -3,8 +3,6 @@ import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 
 
-
-
 export interface IUser extends Document {
 	email: string;
 	hash: string;
@@ -13,12 +11,16 @@ export interface IUser extends Document {
 	validatePassword: Function,
 	toAuthJSON: Function,
 	generateJWT: Function,
+    googleId: string;
+	facebookId:  string;
 }
 
 export const UserSchema: Schema = new Schema({
 	email: { type: String, required: true, unique: true },
 	hash: { type: String, required: true },
 	salt: { type: String, required: true },
+    googleId: { type: String, required:false},
+    facebookId: {type: String, required: false}
 });
 
 
