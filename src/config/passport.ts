@@ -24,10 +24,8 @@ passport.use(new GoogleStrategy({
         callbackURL: "http://localhost:5000/users/google/callback",
     },
     async (accessToken:any, refreshToken:any, profile:any, done: any) =>  {
-        console.log("sdasdasd", profile);
 
         const user = await Users.findOne({googleId: profile.id}).exec();
-        console.log('xdsadasdsasdasd');
 
         if(!user){
             let newUser = {
