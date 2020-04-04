@@ -109,12 +109,12 @@ class StreamController {
 	    const torrentFile = this.getTorrentFile(req.params.hash);
 
         if (torrentFile == null) {
-            res.statusCode = 200;
+            res.statusCode = 404;
             res.end();
             return;
         }
 
-        res.statusCode = 200;
+        res.statusCode = 206;
         res.setHeader('Content-Type', mime.getType(torrentFile.name) || 'application/octet-stream');
 
         // Support range-requests
