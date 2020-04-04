@@ -313,19 +313,20 @@ class RoomController {
 		if (!kickedUser)
 			return res.sendStatus(404);
 
+
 		if (user.id == room.Owner.toString()) {
-			room = await Rooms.findByIdAndUpdate(room?._id, { $pull: { Users: { 'User.email': kickedUser.email } } }, { new: true })
-				.populate({ path: 'Users.User', model: 'User' })
-				.exec();
+		    await room.update({$pull: {Users: {User: kickedUser._id}}}).exec();
+
 
 			if (!room)
 				return res.sendStatus(404);
 
 			this._io.in(room.Id).emit('room:updated', room.toJSON());
 			this._io.in(room.Id).emit('room:user:kicked', kickedUser.toJSON());
-
 			return res.json(room?.toJSON());
 		}
+
+		return res.sendStatus(401);
 	};
 
 
