@@ -50,11 +50,13 @@ class RoomController {
     }
 
 	private async getRooms(req: Request, res: Response) {
-		res.json(await Rooms.find());
+	    const user = req.user as IUser;
+		res.json(await Rooms.find({'Users.User': {$ne: user.id}}));
 	};
 
 	private async getRoomsPaging(req: Request, res: Response) {
-		res.json(await Rooms.find().skip((Number(req.params.page) - 1) * 20).limit(20));
+        const user = req.user as IUser;
+        res.json(await Rooms.find({'Users.User': {$ne: user.id}}).skip((Number(req.params.page) - 1) * 20).limit(20));
 	};
 
 	private async getRoom(req: Request, res: Response) {
