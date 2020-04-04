@@ -12,13 +12,6 @@ export class RoomManager {
 		this._io.on('connection', (socket: Socket) => this.onConnect(socket));
 	}
 
-	static leaveRooms(socket: Socket) {
-		for (let roomId in socket.rooms) {
-			socket.leave(roomId);
-		}
-		return;
-	}
-
 	// Checks if the user is part of this room and connects to it.
 	async connectRoom(socket: Socket, data: { user: string, room: string }) {
 		if (!this.authenticateSocket(data.user, data.room)) {
@@ -33,7 +26,7 @@ export class RoomManager {
 		}
 
 		// Leave all rooms the socket is currently in.
-		RoomManager.leaveRooms(socket);
+		socket.leaveAll();
 
 		console.log(`${user.email} connected to room ${room.Id}`);
 
@@ -59,7 +52,9 @@ export class RoomManager {
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
 		socket.on('room:connect', (data) => this.connectRoom(socket, data));
-		socket.on('room:user:ready', (ready) => this.updateReady(socket, ready))
+		socket.on('room:user:ready', (ready) => this.updateReady(socket, ready));
+		socket.on('room:user:play', (data) => this.sendPlayEvent(socket, data));
+		socket.on('room:user:pause', () => this.sendPauseEvent(socket));
 		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
 
@@ -119,7 +114,7 @@ export class RoomManager {
 	}
 
 	private disconnectRoom(socket: SocketIO.Socket) {
-		const socketInfo = this.socketInfo.find(x => x.socketId == socket.id);
+		const socketInfo = this.findSocket(socket);
 
 		if (!socketInfo)
 			return;
@@ -134,14 +129,34 @@ export class RoomManager {
 	}
 
 	private updateReady(socket: SocketIO.Socket, ready: boolean) {
-		const socketInfo = this.socketInfo.find(x => x.socketId == socket.id);
+		const socketInfo = this.findSocket(socket);
+
+		if (!socketInfo)
+			return;
+		socketInfo.ready = ready;
+		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
+	}
+
+	private sendPlayEvent(socket: Socket, currentTime: number) {
+		const socketInfo = this.findSocket(socket);
 
 		if (!socketInfo)
 			return;
 
+		socket.broadcast.to(socketInfo.roomId).emit('room:player:play', { user: socketInfo.userId, time: currentTime });
+	}
 
-		socketInfo.ready = ready;
-		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
+	private sendPauseEvent(socket: Socket) {
+		const socketInfo = this.findSocket(socket);
+
+		if (!socketInfo)
+			return;
+
+		socket.broadcast.to(socketInfo.roomId).emit('room:player:pause', { user: socketInfo.userId });
+	}
+
+	private findSocket(socket: Socket) {
+		return this.socketInfo.find(x => x.socketId == socket.id);
 	}
 }
 
