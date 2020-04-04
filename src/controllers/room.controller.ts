@@ -2,7 +2,7 @@ import { default as express, Request, Response } from 'express';
 import Rooms, { IRoom } from '../documents/room.interface';
 import auth from '../config/auth';
 import Users, { IUser } from '../documents/user.interface';
-import Roles, { IRole } from '../documents/role.interface';
+import Roles from '../documents/role.interface';
 import { IQueueItem } from '../documents/queue.interface';
 import SocketIO, {Server, Socket} from 'socket.io';
 import App from '../app';
@@ -120,6 +120,10 @@ class RoomController {
 			return res.sendStatus(401);
 
 		const defaultRole = await this.getRole("Viewer");
+
+		if (!defaultRole)
+			return;
+
 		const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 			$addToSet: {
 				Users: [{
@@ -156,6 +160,7 @@ class RoomController {
 			.populate({ path: 'Users.User', model: 'User' })
 			.populate({ path: 'User.Role', model: 'Role' })
 			.exec();
+
 		if (!roomObj)
 			return res.sendStatus(500);
 
@@ -257,8 +262,11 @@ class RoomController {
 			return res.sendStatus(400);
 
 
-
 		const viewerRole = await this.getRole('Viewer');
+
+		if (!viewerRole)
+			return;
+
 		if (user._id.toString() == room?.Owner.toString()) {
 			const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 				$addToSet: {
@@ -296,19 +304,21 @@ class RoomController {
 			return res.sendStatus(404);
 
 		const kickedUser = await Users.findOne({ email: email }).exec();
-		console.log(kickedUser);
 		if (!kickedUser)
 			return res.sendStatus(404);
 
 
 		if (user.id == room.Owner.toString()) {
-		    await room.update({$pull: {Users: {User: kickedUser._id}}}).exec();
+			const updatedRoom = await Rooms
+				.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Users: { User: kickedUser._id } } }, { new: true })
+				.populate({ path: 'Users.User', model: 'User' })
+				.populate({ path: 'Users.Role', model: 'Role' })
+				.exec();
 
-
-			if (!room)
+			if (!updatedRoom)
 				return res.sendStatus(404);
 
-			this._io.in(room.Id).emit('room:updated', room.toJSON());
+			this._io.in(room.Id).emit('room:updated', updatedRoom.toJSON());
 			this._io.in(room.Id).emit('room:user:kicked', kickedUser.toJSON());
 			return res.json(room?.toJSON());
 		}
@@ -317,13 +327,8 @@ class RoomController {
 	};
 
 
-	private getRole(roleName: string): Promise<IRole> {
-		return new Promise<IRole>((resolve, reject) => {
-			Roles.findOne({ Name: roleName }, (err: any, room: any) => {
-				if (err) reject(err);
-				resolve(room);
-			});
-		});
+	private async getRole(roleName: string) {
+		return await Roles.findOne({ Name: roleName }).exec();
 	}
 
 	private getQueueIndex(room: IRoom): number {

@@ -4,6 +4,8 @@ import * as crypto from 'crypto';
 
 
 export interface IUser extends Document {
+	firstName: string;
+	lastName: string;
 	email: string;
 	hash: string;
 	salt: string;
@@ -11,16 +13,18 @@ export interface IUser extends Document {
 	validatePassword: Function,
 	toAuthJSON: Function,
 	generateJWT: Function,
-    googleId: string;
-	facebookId:  string;
+	googleId: string;
+	facebookId: string;
 }
 
 export const UserSchema: Schema = new Schema({
+	firstName: { type: String, required: true },
+	lastName: { type: String, required: true },
 	email: { type: String, required: true, unique: true },
 	hash: { type: String, required: true },
 	salt: { type: String, required: true },
-    googleId: { type: String, required:false},
-    facebookId: {type: String, required: false}
+	googleId: { type: String, required: false },
+	facebookId: { type: String, required: false }
 });
 
 
@@ -48,11 +52,11 @@ UserSchema.methods.generateJWT = function () {
 };
 
 UserSchema.set('toJSON', {
-    transform: function(doc, ret, options) {
-        delete ret.Hash;
-        delete ret.Salt;
-        return ret;
-    }
+	transform: function (doc, ret, options) {
+		delete ret.Hash;
+		delete ret.Salt;
+		return ret;
+	}
 });
 
 UserSchema.methods.toAuthJSON = function () {

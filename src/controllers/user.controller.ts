@@ -1,92 +1,94 @@
 import * as express from 'express';
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import Users, { IUser } from '../documents/user.interface';
 import auth from '../config/auth';
 import passport from 'passport';
 import Room from '../documents/room.interface';
-import { TmdbService } from '../services/tmdb.service';
+import fetch from 'node-fetch';
 
 class UserController {
 	public path = '/users';
 	public router = express.Router();
 
 	constructor() {
-		this.intializeRoutes();
+		this.initializeRoutes();
 	}
 
-	public intializeRoutes() {
-		this.router.post(this.path, auth.optional, this.createUser);
-		this.router.post(`${this.path}/login`, auth.optional, this.login);
+	public initializeRoutes() {
 		this.router.get(`${this.path}/room`, auth.required, this.getRooms);
+
+		// Local authentication
+		// You can only manage yourself, not other users.
+		this.router.post(this.path, this.createUser);
+		this.router.get(`${this.path}/me`, auth.required, this.getUser);
+		this.router.post(`${this.path}/login`, this.login);
+		this.router.delete(this.path, auth.required, this.deleteUser);
+
+		// Google authentication
+		this.router.post(`${this.path}/google/:token`, this.registerGoogle);
+
+
+		this.router.get(`${this.path}/google`, passport.authenticate("google", {
+			scope: ["email", "profile"]
+		}));
 
 		this.router.get(`${this.path}/google/callback`, passport.authenticate('google', {
 			session: false,
 			failureRedirect: '/login'
 		}), this.googleCallback);
 
-		this.router.get(`${this.path}/facebook/callback`, passport.authenticate('facebook', {
-			session: false,
-			failureRedirect: '/login'
-		}), this.facebookCallback);
 
-		this.router.get(`${this.path}/google`, passport.authenticate("google", {
-			scope: ["email", "profile"]
-		}));
-
+		// Facebook authentication
 		this.router.get(`${this.path}/facebook`, passport.authenticate("facebook", {
 			scope: ['email']
 		}));
 
-		this.router.get(`${this.path}/test`, auth.optional, async (req, res) => {
-			let result = await TmdbService.searchItems("Pulp Fiction");
-			console.log(result.total_results);
-			res.json(result);
-		});
+		this.router.get(`${this.path}/facebook/callback`, passport.authenticate('facebook', {
+			session: false,
+			failureRedirect: '/login'
+		}), this.facebookCallback);
 	}
 
-	createUser = (req: express.Request, res: express.Response) => {
-		const { body: { user } } = req;
+	private async getRooms(req: Request, res: Response) {
+		const requestUser: IUser = req.user as IUser;
+		const user = await Users.findOne({ email: requestUser.email }).exec();
 
-		if (!user.email) {
-			return res.status(422).json({
-				errors: {
-					email: 'is required'
-				}
-			});
-		}
+		if (!user)
+			return res.sendStatus(401);
 
-		if (!user.password) {
-			return res.status(422).json({
-				errors: {
-					password: 'is required'
-				}
-			});
-		}
-
-		const finalUser = new Users(user);
-		finalUser.setPassword(user.password);
-
-		return finalUser.save().then(() => res.json({ user: finalUser.toAuthJSON() }));
+		const rooms = await Room.find({ 'Users.User': user._id }).exec();
+		return res.json(rooms);
 	};
 
-	login = (req: express.Request, res: express.Response, next: any) => {
-		const { body: { user } } = req;
-		if (!user.email) {
-			return res.status(422).json({
-				errors: {
-					email: 'is required'
-				}
+	private async googleCallback(req: Request, res: Response) {
+		if (!req.user)
+			return res.sendStatus(401);
+		let user: any = req.user;
+		user.token = user.generateJWT();
+
+		//TODO: REDIRECT BACK TO APP + /token!!!
+		return res.json({ user: user.toAuthJSON() });
+	};
+
+	private async facebookCallback(req: Request, res: Response) {
+		if (!req.user)
+			return res.sendStatus(401);
+
+
+		let user: any = req.user;
+		user.token = user.generateJWT();
+
+		return res.json({ user: user.toAuthJSON() });
+	};
+
+	private async login(req: Request, res: Response, next: NextFunction) {
+		const user: { email: string, password: string } = req.body;
+
+		if (!user.email || !user.password) {
+			return res.status(400).json({
+				invalid: true
 			});
 		}
-
-		if (!user.password) {
-			return res.status(422).json({
-				errors: {
-					password: 'is required'
-				}
-			});
-		}
-
 
 		return passport.authenticate('local', { session: false }, (err, passportUser, info) => {
 			if (err) {
@@ -104,39 +106,54 @@ class UserController {
 		})(req, res, next);
 	};
 
-	getRooms = async (req: Request, res: Response) => {
-		const user: IUser | undefined = req.user as IUser;
+	private async createUser(req: Request, res: Response) {
+		const user: { firstName: string, lastName: string, email: string, password: string } = req.body;
 
-		Users.findOne({ email: user.email }, (err: any, user) => {
-			if (user) {
-				// @ts-ignore
-				return Room.find({ 'Users.User': user._id }).then(rooms => {
-					return res.json(rooms);
-				});
-			} else {
-				res.status(404);
-			}
-		});
+		if (await Users.findOne({ email: user.email }).exec())
+			return res.status(400).json({
+				exists: true
+			});
+
+
+		if (!user.email || !user.password || !user.firstName || !user.lastName)
+			return res.status(400).json({
+				invalid: true
+			});
+
+
+		const newUser = new Users(user);
+		newUser.setPassword(user.password);
+
+		return res.json({ user: (await newUser.save()).toAuthJSON() });
 	};
 
-	googleCallback = async (req: Request, res: Response) => {
-		if (!req.user)
+	private async deleteUser(req: Request, res: Response) {
+		const requestUser: IUser = req.user as IUser;
+		const user = await Users.findOneAndDelete({ email: requestUser.email }).exec();
+
+		if (!user)
 			return res.sendStatus(401);
-		let user: any = req.user;
-		console.log(req.user);
-		user.token = user.generateJWT();
-		return res.json({ user: user.toAuthJSON() });
-	};
 
-	facebookCallback = async (req: Request, res: Response) => {
-		if (!req.user)
+		return res.json({ deleted: true });
+	}
+
+	private async getUser(req: Request, res: Response) {
+		const requestUser: IUser = req.user as IUser;
+		const user = await Users.findOne({ email: requestUser.email }).exec();
+
+		if (!user)
 			return res.sendStatus(401);
-		let user: any = req.user;
-		console.log(req.user);
-		user.token = user.generateJWT();
 
-		return res.json({ user: user.toAuthJSON() });
-	};
+		return res.json(user);
+	}
+
+	private async registerGoogle(req: Request, res: Response) {
+		const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${req.params.token}`);
+
+		// TODO: CREATE USER
+
+		return res.json({ valid: true });
+	}
 }
 
 export default UserController;
