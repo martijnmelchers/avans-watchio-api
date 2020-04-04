@@ -19,7 +19,7 @@ export interface IRoom extends Document {
 
 const UserRoleSchema = new Schema({
     User: {type: Schema.Types.ObjectId, ref: 'User', required: true},
-    Roles: {type: [Schema.Types.ObjectId], ref: 'Role',default: []}
+    Role: {type: Schema.Types.ObjectId, ref: 'Role'}
 });
 
 const RoomSchema: Schema = new Schema({

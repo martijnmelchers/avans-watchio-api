@@ -55,7 +55,7 @@ class RoomController {
 		try {
 			const room = await Rooms.findOne({ Id: req.params.roomId })
 				.populate({ path: 'Users.User', model: 'User' })
-				.populate({ path: 'Users.Roles', model: 'Role' })
+				.populate({ path: 'Users.Role', model: 'Role' })
 				.exec();
 			if (!room)
 				return res.sendStatus(404);
@@ -125,13 +125,13 @@ class RoomController {
 		const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 			$addToSet: {
 				Users: [{
-					Roles: [defaultRole._id],
+					Role: defaultRole._id,
 					User: userObj?._id
 				}]
 			}
 		}, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'Users.Roles', model: 'Role' })
+			.populate({ path: 'User.Role', model: 'Role' })
 			.exec();
 		if (!roomObj)
 			return res.sendStatus(500);
@@ -154,7 +154,7 @@ class RoomController {
 		}
 		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'Users.Roles', model: 'Role' })
+			.populate({ path: 'User.Role', model: 'Role' })
 			.exec();
 		if (!roomObj)
 			return res.sendStatus(500);
@@ -213,7 +213,7 @@ class RoomController {
 			return res.sendStatus(500);
 
 		room = await room.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'Users.Roles', model: 'Role' })
+			.populate({ path: 'User.Role', model: 'Role' })
 			.execPopulate();
 
 		this._io.in(room.Id).emit('room:updated', room.toObject());
@@ -239,7 +239,7 @@ class RoomController {
 		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
 			// @ts-ignore
-			.populate({ path: 'Users.Roles', model: 'Role' }, (err, updated) => {
+			.populate({ path: 'User.Role', model: 'Role' }, (err, updated) => {
 				if (!updated)
 					return res.sendStatus(500);
 
@@ -272,17 +272,19 @@ class RoomController {
 			return res.sendStatus(400);
 
 
+
+		const viewerRole = await this.getRole('Viewer');
 		if (user._id.toString() == room?.Owner.toString()) {
 			const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 				$addToSet: {
 					Users: [{
-						Roles: [],
+						Role: viewerRole._id,
 						User: addedUserId
 					}]
 				}
 			}, { new: true })
 				.populate({ path: 'Users.User', model: 'User' })
-				.populate({ path: 'Users.Roles', model: 'Role' })
+				.populate({ path: 'Users.Role', model: 'Role' })
 				.exec();
 
 			if (!roomObj)
