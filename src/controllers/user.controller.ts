@@ -4,6 +4,8 @@ import Users, { IUser } from '../documents/user.interface';
 import auth from '../config/auth';
 import passport from 'passport';
 import Room from '../documents/room.interface';
+import jwt from 'jsonwebtoken';
+import {TmdbService} from '../services/tmdb.service';
 
 class UserController {
 	public path = '/users';
@@ -17,6 +19,24 @@ class UserController {
 		this.router.post(this.path, auth.optional, this.createUser);
 		this.router.post(`${this.path}/login`, auth.optional, this.login);
 		this.router.get(`${this.path}/room`, auth.required, this.getRooms);
+		this.router.get(`${this.path}/google/callback`, passport.authenticate('google', {session: false, failureRedirect: '/login'}), this.googleCallback);
+		this.router.get(`${this.path}/facebook/callback`, passport.authenticate('facebook', {session: false, failureRedirect: '/login'}), this.facebookCallback);
+
+		this.router.get(`${this.path}/google`, passport.authenticate("google", {
+            scope: ["email", "profile"],
+        }));
+
+        this.router.get(`${this.path}/facebook`, passport.authenticate("facebook", {
+            scope: ['email']
+        }));
+
+
+
+        this.router.get(`${this.path}/test`, auth.optional, async (req, res) => {
+                let result = await TmdbService.searchItems("Pulp Fiction");
+                console.log(result.total_results);
+                res.json(result);
+        });
 	}
 
 	createUser = (req: express.Request, res: express.Response) => {
@@ -93,6 +113,25 @@ class UserController {
 			}
 		});
 	};
+
+	googleCallback = async(req: Request, res: Response) => {
+	    if(!req.user)
+	        return res.sendStatus(401);
+        let user: any = req.user;
+        console.log(req.user);
+        user.token = user.generateJWT();
+        return res.json({ user: user.toAuthJSON() });
+    };
+
+    facebookCallback = async(req: Request, res: Response) => {
+        if(!req.user)
+            return res.sendStatus(401);
+        let user: any = req.user;
+        console.log(req.user);
+        user.token = user.generateJWT();
+
+        return res.json({ user: user.toAuthJSON() });
+    }
 }
 
 export default UserController;

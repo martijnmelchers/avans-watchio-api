@@ -10,7 +10,6 @@ const getTokenFromHeaders = (req: express.Request) => {
 	return null;
 };
 
-
 const auth = {
 	required: jwt({
 		secret: 'secret',

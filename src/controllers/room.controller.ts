@@ -39,15 +39,15 @@ class RoomController {
 		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, (req, res) => this.removeFromQueue(req, res));
 	}
 
-	getRooms = async (req: Request, res: Response) => {
+	private async getRooms  (req: Request, res: Response) {
 		res.json(await Rooms.find());
 	};
 
-	getRoomsPaging = async (req: Request, res: Response) => {
+	private async getRoomsPaging (req: Request, res: Response){
 		res.json(await Rooms.find().skip((Number(req.params.page) - 1) * 20).limit(20));
 	};
 
-	getRoom = async (req: Request, res: Response) => {
+	private async getRoom (req: Request, res: Response){
 		if (!req.params.roomId) res.sendStatus(422);
 		const user: IUser | undefined = req.user as IUser;
 		const userObj = await Users.findOne({ email: user.email }).exec();
@@ -74,7 +74,7 @@ class RoomController {
 		res.status(404);
 	};
 
-	createRoom = async (req: Request, res: Response) => {
+	private async createRoom  (req: Request, res: Response){
 		let room = req.body;
 		const user: IUser | undefined = req.user as IUser;
 		const userObj = await Users.findOne({ email: user.email }).exec();
@@ -93,10 +93,11 @@ class RoomController {
 			path: 'Users.User',
 			model: 'User'
 		}).execPopulate();
+
 		res.json(roomObj.toJSON());
 	};
 
-	joinRoom = async (req: Request, res: Response) => {
+    private async joinRoom(req: Request, res: Response) {
 		const roomId: string = req.params.roomId;
 		const password = req.body.password;
 
@@ -141,7 +142,7 @@ class RoomController {
 	};
 
 
-	leaveRoom = async (req: Request, res: Response) => {
+    private async leaveRoom (req: Request, res: Response){
 		const roomId: string = req.params.roomId;
 		const user: IUser | undefined = req.user as IUser;
 		const userObj = await Users.findOne({ email: user.email }).exec();
@@ -165,7 +166,7 @@ class RoomController {
 		return res.json(roomObj.toJSON());
 	};
 
-	deleteRoom = async (req: Request, res: Response) => {
+	private async deleteRoom(req: Request, res: Response){
 		if (!req.params.roomId) res.sendStatus(422);
 		const roomId = req.params.roomId;
 
@@ -189,7 +190,7 @@ class RoomController {
 	};
 
 
-	addToQueue = async (req: Request, res: Response) => {
+	private async addToQueue(req: Request, res: Response){
 		if (!req.params.roomId) res.sendStatus(400);
 		const user: IUser | undefined = req.user as IUser;
 
@@ -211,13 +212,17 @@ class RoomController {
 		if (!room)
 			return res.sendStatus(500);
 
+		room = await room.populate({path: 'Users.User', model: 'User'})
+            .populate({path: 'Users.Roles', model: 'Role'})
+            .execPopulate();
+
 		this._io?.in(room.Id).emit('room:updated', room.toObject());
 		this._io?.in(room.Id).emit('room:queue:added', room.toObject());
 		return res.json(room.toJSON());
 	};
 
 
-	removeFromQueue = async (req: Request, res: Response) => {
+	private async removeFromQueue(req: Request, res: Response){
 		if (!req.params.roomId || !req.params.queueItemPos) res.sendStatus(400);
 		const user: IUser | undefined = req.user as IUser;
 
@@ -246,14 +251,14 @@ class RoomController {
 	};
 
 
-	getUser = async (req: Request, res: Response) => {
+	private async getUser (req: Request, res: Response){
 		if (!req.params.roomId || !req.params.email) res.sendStatus(400);
 
 		const user = await Users.findOne({ email: req.params.email }).exec();
 		return res.json(user?.toJSON());
 	};
 
-	inviteUser = async (req: Request, res: Response) => {
+	private async inviteUser(req: Request, res: Response){
 		const roomId: string = req.params.roomId;
 		const room = await Rooms.findOne({ Id: roomId }).exec();
 		const addedUserId = req.body.Id;
@@ -291,7 +296,7 @@ class RoomController {
 	};
 
 
-	kickUser = async (req: Request, res: Response) => {
+	private async kickUser(req: Request, res: Response){
 		const user = req.user as IUser;
 		const email = req.params.email;
 		let room = await Rooms.findOne({ Id: req.params.roomId }).populate({

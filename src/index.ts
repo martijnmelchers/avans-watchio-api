@@ -6,6 +6,10 @@ import App from './app';
 import UserController from './controllers/user.controller';
 import StreamController from './controllers/stream.controller';
 import RoomController from './controllers/room.controller';
+import dotenv from 'dotenv';
+import {TmdbService} from './services/tmdb.service';
+// Configure .env file
+dotenv.config();
 
 const port = 5000;
 
@@ -31,6 +35,8 @@ mongoose.set('useFindAndModify', false);
 
 
 const db: Connection = mongoose.connection;
+
+
 
 
 const roomManager: RoomManager = new RoomManager(io);
