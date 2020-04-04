@@ -5,7 +5,7 @@ import pump from 'pump';
 import rangeParser from 'range-parser';
 import mime from "mime";
 import {Server, Socket} from 'socket.io';
-
+import rimraf from 'rimraf';
 //
 class StreamController {
 	public path = '/stream';
@@ -34,19 +34,21 @@ class StreamController {
 	}
 
 
-	public setupStream(magnetUri: string, room: string): Promise<string>{
-	    return new Promise<string>((resolve, reject) => {
+	public setupStream(magnetUri: string, room: string){
             let torrent = this._client.get(magnetUri);
             if(torrent){
-                return resolve(torrent.infoHash);
-            }
-            this._client.add(magnetUri, ((torrent: WebTorrent.Torrent) => {
-                torrent.on('done', () => this.onDone(torrent, room));
-                torrent.on('download', (bytes) => this.onProgress(torrent, room));
                 console.log(torrent.infoHash);
-                resolve(torrent.infoHash);
+                return torrent.infoHash;
+            }
+
+            this._client.add(magnetUri, ((torrent) =>{
+                console.log(torrent.infoHash);
+                torrent.on('done', () => this.onDone(torrent, room));
+                // @ts-ignore
+                torrent.on('download', (bytes) => this.onProgress(torrent, room));
+
+                return torrent.infoHash;
             }));
-        });
 	}
 
 	public stopStream(magnetUri: string, room: string): Promise<string>{
@@ -55,17 +57,38 @@ class StreamController {
             if(!torrent){
                 return resolve(undefined);
             }
-
             this._client.remove(torrent, ((err) => {
                 if(err){return reject(err)}
-
-                return resolve(torrent.infoHash);
+                rimraf(torrent.path,(err) => {
+                    if(err) reject(err);
+                    return resolve(torrent.infoHash);
+                });
             }));
         });
     }
 
+
+    public sendProgress(magnetUris: string[], roomId: string){
+	    magnetUris.forEach((magnetUri) => {
+            let torrent = this._client.get(magnetUri) as WebTorrent.Torrent;
+
+            if(torrent.done){
+                this.onDone(torrent, roomId);
+                return;
+            }
+
+            let torrentData= {
+                progress: torrent.progress,
+                speed: torrent.downloadSpeed,
+                peers: torrent.numPeers,
+                hash: torrent.infoHash
+            };
+            this._io.to(roomId).emit('room:torrent:progress', torrentData);
+        });
+    }
+
 	private onProgress(torrent: WebTorrent.Torrent, roomId: string){
-        this._io.to(roomId).emit("progress", {
+        this._io.to(roomId).emit("room:torrent:progress", {
             progress: torrent.progress,
             speed: torrent.downloadSpeed,
             peers: torrent.numPeers,
@@ -74,7 +97,7 @@ class StreamController {
     }
 
     private onDone(torrent: WebTorrent.Torrent, roomId: string) {
-        this._io.to(roomId).emit('done', {
+        this._io.to(roomId).emit('room:torrent:done', {
             hash: torrent.infoHash
         });
     }

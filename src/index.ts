@@ -1,7 +1,7 @@
 import WebTorrent, { Torrent } from "webtorrent";
 import mongoose, { Connection } from 'mongoose';
 import SocketIO from "socket.io";
-import { RoomManager } from './playback';
+// import { RoomManager } from './playback';
 import App from './app';
 import UserController from './controllers/user.controller';
 import StreamController from './controllers/stream.controller';
@@ -38,15 +38,6 @@ mongoose.set('useFindAndModify', false);
 
 const db: Connection = mongoose.connection;
 
-
-
-
-const roomManager: RoomManager = new RoomManager(io);
-
-const videoTypes: Array<string> = [
-	"mp4",
-	"mkv"
-];
 
 // client.add(torrentString, (torrent: Torrent) => {
 //     torrent.on("done", () => {

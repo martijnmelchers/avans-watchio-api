@@ -48,6 +48,7 @@
     "@types/passport-facebook": "^2.1.9",
     "@types/passport-http-bearer": "^1.0.34",
     "@types/passport-local": "^1.0.33",
+    "@types/rimraf": "^3.0.0",
     "cli-progress": "^3.6.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
@@ -64,6 +65,7 @@
     "passport-local": "^1.0.0",
     "pump": "latest",
     "range-parser": "^1.2.1",
+    "rimraf": "^3.0.2",
     "socket.io": "^2.3.0",
     "socket.io-emitter": "^3.1.1"
   }
