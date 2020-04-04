@@ -2,8 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import passport from 'passport';
 import * as http from 'http';
-
-const cors = require('cors');
+import cors from 'cors';
 
 class App {
 	public app: express.Application;
