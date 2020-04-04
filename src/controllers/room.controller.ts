@@ -9,6 +9,7 @@ import App from '../app';
 import {inRoom} from '../middleware/in-room.middleware';
 import StreamController from './stream.controller';
 import * as jwt from 'jsonwebtoken';
+import parseTorrent from 'parse-torrent';
 
 class RoomController {
 	public path = '/rooms';
@@ -198,12 +199,18 @@ class RoomController {
 		if (!req.params.roomId) res.sendStatus(400);
 
 		let room: IRoom | null | undefined = await Rooms.findOne({ Id: req.params.roomId }).exec();
-
 		// @ts-ignore
         const index: number = this.getQueueIndex(room);
 
+
+
+        let infoHash = parseTorrent(req.body.MagnetUri).infoHash;
+        if(!infoHash)
+            return res.sendStatus(400);
+
 		const queueItem = req.body;
 		queueItem.Position = index + 1;
+        queueItem.InfoHash = infoHash;
 
 		room?.Queue.push(queueItem);
 		room = await room?.save();
