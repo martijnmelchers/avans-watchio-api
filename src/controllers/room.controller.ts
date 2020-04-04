@@ -6,15 +6,19 @@ import Roles from '../documents/role.interface';
 import { IQueueItem } from '../documents/queue.interface';
 import { Server } from 'socket.io';
 import App from '../app';
+import {inRoom} from '../middleware/in-room.middleware';
+import StreamController from './stream.controller';
 
 class RoomController {
 	public path = '/rooms';
 	public router = express.Router();
 	private _app: App | undefined;
 	private _io: Server;
+	private _streamController: StreamController;
 
-	constructor(io: Server) {
+	constructor(io: Server, streamController: StreamController) {
 		this._io = io;
+		this._streamController = streamController;
 		this.intializeRoutes();
 	}
 
@@ -23,20 +27,20 @@ class RoomController {
 		this.router.get(this.path, auth.required, this.getRooms);
 		this.router.get(`${this.path}/page/:page`, auth.required, this.getRoomsPaging);
 		this.router.post(`${this.path}/:roomId`, auth.required, (req, res) => this.joinRoom(req, res));
-		this.router.delete(`${this.path}/:roomId/leave`, auth.required, (req, res) => this.leaveRoom(req, res));
-		this.router.get(`${this.path}/:roomId`, auth.required, this.getRoom);
+		this.router.delete(`${this.path}/:roomId/leave`, auth.required, inRoom, (req, res) => this.leaveRoom(req, res));
+		this.router.get(`${this.path}/:roomId`, auth.required, inRoom, this.getRoom);
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
-		this.router.delete(`${this.path}/:roomId`, auth.required, (req, res) => this.deleteRoom(req, res));
+		this.router.delete(`${this.path}/:roomId`, auth.required, inRoom, (req:any , res:any) => this.deleteRoom(req, res));
 
 		// User routes
-		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, (req, res) => this.kickUser(req, res));
-		this.router.get(`${this.path}/:roomId/users/:email`, auth.required, (req, res) => this.getUser(req, res));
+		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.kickUser(req, res));
+		this.router.get(`${this.path}/:roomId/users/:email`, auth.required,inRoom,  (req, res) => this.getUser(req, res));
 
-		this.router.post(`${this.path}/roomId/users`, auth.required, (req, res) => this.inviteUser(req, res));
+		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom,  (req, res) => this.inviteUser(req, res));
 
 		// Queue Routes
-		this.router.post(`${this.path}/:roomId/queue`, auth.required, (req, res) => this.addToQueue(req, res));
-		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, (req, res) => this.removeFromQueue(req, res));
+		this.router.post(`${this.path}/:roomId/queue`, auth.required, inRoom, (req, res) => this.addToQueue(req, res));
+		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, inRoom, (req, res) => this.removeFromQueue(req, res));
 	}
 
 	private async getRooms(req: Request, res: Response) {
@@ -48,30 +52,18 @@ class RoomController {
 	};
 
 	private async getRoom(req: Request, res: Response) {
-		if (!req.params.roomId) res.sendStatus(422);
-		const user: IUser | undefined = req.user as IUser;
-		const userObj = await Users.findOne({ email: user.email }).exec();
-
 		try {
 			const room = await Rooms.findOne({ Id: req.params.roomId })
 				.populate({ path: 'Users.User', model: 'User' })
 				.populate({ path: 'Users.Role', model: 'Role' })
 				.exec();
-			if (!room)
-				return res.sendStatus(404);
 
-
-			// @ts-ignore
-			if (!room.Users.find((user) => user.User.email == userObj?.email)) {
-				return res.sendStatus(401);
-			}
-
-			res.json(room.toJSON());
+			return res.json(room?.toJSON());
 		} catch (e) {
 			console.log("An error occurred while getting the room!");
 		}
 
-		res.status(404);
+		res.status(404)
 	};
 
 	private async createRoom(req: Request, res: Response) {
@@ -140,6 +132,7 @@ class RoomController {
 		if (!roomObj)
 			return res.sendStatus(500);
 
+
 		this._io.in(roomObj.Id).emit('room:updated', roomObj.toJSON());
 		this._io.in(roomObj.Id).emit('room:user:joined', userObj?.toJSON());
 		return res.json(roomObj.toJSON());
@@ -156,6 +149,7 @@ class RoomController {
 			res.statusCode = 400;
 			return res.json({ message: "Room owner cannot leave room" });
 		}
+
 		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
 			.populate({ path: 'User.Role', model: 'Role' })
@@ -180,10 +174,7 @@ class RoomController {
 
 
 		const room = await Rooms.findOne({ Id: roomId }).exec();
-		if (!room)
-			return res.sendStatus(404);
-
-		if (room.Owner.toString() != userObj?._id.toString())
+		if (room?.Owner.toString() != userObj?._id.toString())
 			return res.sendStatus(401);
 
 		Rooms.deleteOne({ Id: roomId }).then(() => {
@@ -197,23 +188,17 @@ class RoomController {
 
 	private async addToQueue(req: Request, res: Response) {
 		if (!req.params.roomId) res.sendStatus(400);
-		const user: IUser | undefined = req.user as IUser;
-
-
-		if (!this.isInRoom(user, req.params.roomId))
-			return res.sendStatus(401);
 
 		let room: IRoom | null | undefined = await Rooms.findOne({ Id: req.params.roomId }).exec();
-		if (!room)
-			return res.sendStatus(404);
 
-		const index: number = this.getQueueIndex(room);
+		// @ts-ignore
+        const index: number = this.getQueueIndex(room);
 
 		const queueItem = req.body;
 		queueItem.Position = index + 1;
 
-		room.Queue.push(queueItem);
-		room = await room.save();
+		room?.Queue.push(queueItem);
+		room = await room?.save();
 		if (!room)
 			return res.sendStatus(500);
 
@@ -221,27 +206,21 @@ class RoomController {
 			.populate({ path: 'User.Role', model: 'Role' })
 			.execPopulate();
 
+
+		this.startTorrents(room.Id);
 		this._io.in(room.Id).emit('room:updated', room.toObject());
 		this._io.in(room.Id).emit('room:queue:added', room.toObject());
-		return res.json(room.toJSON());
+		res.json(room.toJSON());
 	};
 
 
 	private async removeFromQueue(req: Request, res: Response) {
 		if (!req.params.roomId || !req.params.queueItemPos) res.sendStatus(400);
 		const user: IUser | undefined = req.user as IUser;
-
-		let room = await Rooms.findOne({ Id: req.params.roomId }).exec();
-		if (!room)
-			return res.sendStatus(404);
-
-		if (!this.isInRoom(user, req.params.roomId))
-			return res.sendStatus(401);
-
 		const posNum = Number(req.params.queueItemPos);
 
 		// @ts-ignore
-		Rooms.findOneAndUpdate({ Id: room.Id }, { $pull: { Queue: { Position: posNum } } }, { new: true })
+		Rooms.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Queue: { Position: posNum } } }, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
 			// @ts-ignore
 			.populate({ path: 'User.Role', model: 'Role' }, (err, updated) => {
@@ -346,17 +325,6 @@ class RoomController {
 		return await Roles.findOne({ Name: roleName }).exec();
 	}
 
-	private isInRoom = async (user: IUser, roomId: string): Promise<boolean> => {
-		return new Promise<boolean>(async (resolve, reject) => {
-			const userObj = await Users.findOne({ email: user.email }).exec();
-			if (!userObj)
-				return resolve(false);
-
-			const room = await Rooms.findOne({ Id: roomId, Users: { $in: userObj?.toObject() } }).exec();
-			return resolve(room != undefined);
-		});
-	};
-
 	private getQueueIndex(room: IRoom): number {
 		let index: number = 0;
 		// @ts-ignore
@@ -367,6 +335,36 @@ class RoomController {
 
 		return index;
 	}
+
+
+    private async stopTorrents(roomId: string): Promise<string[]> {
+        return new Promise<string[]>(async (resolve, reject) => {
+            const room = await Rooms.findOne({Id: roomId}).exec();
+            if(!room)
+                return  null;
+
+            let torrentHashes = [];
+            for (const queueItem of room.Queue) {
+                torrentHashes.push( await this._streamController.stopStream(queueItem.MagnetUri, roomId));
+            }
+            resolve(torrentHashes);
+        })
+    }
+
+	private async startTorrents(roomId: string): Promise<string[]>{
+	    return new Promise<string[]>(async (resolve, reject) => {
+            const room = await Rooms.findOne({Id: roomId}).exec();
+            if(!room)
+                return  null;
+
+            let torrentHashes = [];
+            for (const queueItem of room.Queue) {
+                torrentHashes.push( await this._streamController.setupStream(queueItem.MagnetUri, roomId));
+            }
+            resolve(torrentHashes);
+        })
+    }
 }
 
 export default RoomController;
+
