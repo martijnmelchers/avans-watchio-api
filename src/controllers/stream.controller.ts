@@ -1,18 +1,28 @@
 import express, { NextFunction, Request, Response } from "express";
 import auth from '../config/auth';
-import WebTorrent from 'webtorrent';
+import WebTorrent, {Torrent} from 'webtorrent';
 import pump from 'pump';
 import rangeParser from 'range-parser';
 import mime from "mime";
+import {Server, Socket} from 'socket.io';
 
 //
 class StreamController {
 	public path = '/stream';
 	public router = express.Router();
 	private _file: WebTorrent.TorrentFile | undefined;
+    private _io: Server;
+    private _client: WebTorrent.Instance;
 
-	constructor() {
-		this.intializeRoutes();
+    private static videoTypes: Array<string> = [
+        "mp4",
+        "mkv"
+    ];
+
+	constructor(io: Server) {
+	    this._client = new WebTorrent();
+        this._io =io;
+        this.intializeRoutes();
 	}
 
 	public setFile(file: WebTorrent.TorrentFile) {
@@ -20,68 +30,136 @@ class StreamController {
 	}
 
 	public intializeRoutes() {
-		this.router.get(this.path, this.getStream, auth.optional);
+		this.router.get(`${this.path}/:hash`,auth.optional, this.getStream);
 	}
 
+
+	public setupStream(magnetUri: string, room: string): Promise<string>{
+	    return new Promise<string>((resolve, reject) => {
+            let torrent = this._client.get(magnetUri);
+            if(torrent){
+                return resolve(torrent.infoHash);
+            }
+            this._client.add(magnetUri, ((torrent: WebTorrent.Torrent) => {
+                torrent.on('done', () => this.onDone(torrent, room));
+                torrent.on('download', (bytes) => this.onProgress(torrent, room));
+                console.log(torrent.infoHash);
+                resolve(torrent.infoHash);
+            }));
+        });
+	}
+
+	public stopStream(magnetUri: string, room: string): Promise<string>{
+	    return new Promise<string>((resolve, reject) => {
+	        let torrent = this._client.get(magnetUri) as WebTorrent.Torrent;
+            if(!torrent){
+                return resolve(undefined);
+            }
+
+            this._client.remove(torrent, ((err) => {
+                if(err){return reject(err)}
+
+                return resolve(torrent.infoHash);
+            }));
+        });
+    }
+
+	private onProgress(torrent: WebTorrent.Torrent, roomId: string){
+        this._io.to(roomId).emit("progress", {
+            progress: torrent.progress,
+            speed: torrent.downloadSpeed,
+            peers: torrent.numPeers,
+            hash: torrent.infoHash
+        });
+    }
+
+    private onDone(torrent: WebTorrent.Torrent, roomId: string) {
+        this._io.to(roomId).emit('done', {
+            hash: torrent.infoHash
+        });
+    }
+
 	getStream = (req: Request, res: Response, next: NextFunction) => {
+	    if(!req.params.hash)
+	        return res.sendStatus(400);
 
-		if (this._file == null) {
-			res.statusCode = 200;
-			res.end();
-			return;
-		}
+	    const torrentFile = this.getTorrentFile(req.params.hash);
 
-		res.statusCode = 200;
-		res.setHeader('Content-Type', mime.getType(this._file.name) || 'application/octet-stream');
+        if (torrentFile == null) {
+            res.statusCode = 200;
+            res.end();
+            return;
+        }
 
-		// Support range-requests
-		res.setHeader('Accept-Ranges', 'bytes');
+        res.statusCode = 200;
+        res.setHeader('Content-Type', mime.getType(torrentFile.name) || 'application/octet-stream');
 
-		// Set name of file (for "Save Page As..." dialog)
-		res.setHeader(
-			'Content-Disposition',
-			`inline; filename*=UTF-8''${this.encodeRFC5987(this._file.name)}`
-		);
+        // Support range-requests
+        res.setHeader('Accept-Ranges', 'bytes');
 
-		// Support DLNA streaming
-		res.setHeader('transferMode.dlna.org', 'Streaming');
-		res.setHeader(
-			'contentFeatures.dlna.org',
-			'DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000'
-		);
+        // Set name of file (for "Save Page As..." dialog)
+        res.setHeader(
+            'Content-Disposition',
+            `inline; filename*=UTF-8''${this.encodeRFC5987(torrentFile.name)}`
+        );
 
-		// `rangeParser` returns an array of ranges, or an error code (number) if
-		// there was an error parsing the range.
-		let range = rangeParser(this._file.length, req.headers.range || '');
+        // Support DLNA streaming
+        res.setHeader('transferMode.dlna.org', 'Streaming');
+        res.setHeader(
+            'contentFeatures.dlna.org',
+            'DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000'
+        );
 
-		if (Array.isArray(range)) {
-			res.statusCode = 206; // indicates that range-request was understood
+        // `rangeParser` returns an array of ranges, or an error code (number) if
+        // there was an error parsing the range.
+        let range = rangeParser(torrentFile.length, req.headers.range || '');
 
-			// @ts-ignore
-			// no support for multi-range request, just use the first range
-			range = range[0];
+        if (Array.isArray(range)) {
+            res.statusCode = 206; // indicates that range-request was understood
 
-			res.setHeader(
-				'Content-Range',
-				// @ts-ignore
-				`bytes ${range.start}-${range.end}/${this._file.length}`
-			);
-			// @ts-ignore
+            // @ts-ignore
+            // no support for multi-range request, just use the first range
+            range = range[0];
 
-			res.setHeader('Content-Length', range.end - range.start + 1);
-		} else {
-			// @ts-ignore
+            res.setHeader(
+                'Content-Range',
+                // @ts-ignore
+                `bytes ${range.start}-${range.end}/${torrentFile.length}`
+            );
+            // @ts-ignore
 
-			range = null;
-			res.setHeader('Content-Length', this._file.length);
-		}
+            res.setHeader('Content-Length', range.end - range.start + 1);
+        } else {
+            // @ts-ignore
 
-		if (req.method === 'HEAD') {
-			return res.end();
-		}
-		// @ts-ignore
+            range = null;
+            res.setHeader('Content-Length', torrentFile.length);
+        }
 
-		pump(this._file.createReadStream(range), res);
+        if (req.method === 'HEAD') {
+            return res.end();
+        }
+        // @ts-ignore
+
+        pump(torrentFile.createReadStream(range), res);
+    }
+
+	getTorrentFile = (torrentInfoHash: string) => {
+	    const torrent = this._client.torrents.find((trnt) => trnt.infoHash == torrentInfoHash);
+	    if(!torrent)
+	        return null;
+
+	    let videoFile: WebTorrent.TorrentFile | undefined;
+
+	    let files = torrent.files.filter(x => StreamController.videoTypes.includes(x.name.substring(x.name.lastIndexOf(".") + 1)));
+
+	    files.sort((file) => file.length);
+	    videoFile = files.pop();
+
+	    if (!videoFile)
+            null;
+
+        return videoFile;
 	};
 
 	encodeRFC5987 = (str: string) => {

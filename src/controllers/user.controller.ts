@@ -18,10 +18,12 @@ class UserController {
 		this.router.post(this.path, auth.optional, this.createUser);
 		this.router.post(`${this.path}/login`, auth.optional, this.login);
 		this.router.get(`${this.path}/room`, auth.required, this.getRooms);
+
 		this.router.get(`${this.path}/google/callback`, passport.authenticate('google', {
 			session: false,
 			failureRedirect: '/login'
 		}), this.googleCallback);
+
 		this.router.get(`${this.path}/facebook/callback`, passport.authenticate('facebook', {
 			session: false,
 			failureRedirect: '/login'
@@ -34,7 +36,6 @@ class UserController {
 		this.router.get(`${this.path}/facebook`, passport.authenticate("facebook", {
 			scope: ['email']
 		}));
-
 
 		this.router.get(`${this.path}/test`, auth.optional, async (req, res) => {
 			let result = await TmdbService.searchItems("Pulp Fiction");

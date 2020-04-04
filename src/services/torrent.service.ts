@@ -1,6 +1,4 @@
 class TorrentService {
-
-
     constructor() {
     }
 }

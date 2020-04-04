@@ -7,15 +7,18 @@ import { IQueueItem } from '../documents/queue.interface';
 import { Server } from 'socket.io';
 import App from '../app';
 import {inRoom} from '../middleware/in-room.middleware';
+import StreamController from './stream.controller';
 
 class RoomController {
 	public path = '/rooms';
 	public router = express.Router();
 	private _app: App | undefined;
 	private _io: Server;
+	private _streamController: StreamController;
 
-	constructor(io: Server) {
+	constructor(io: Server, streamController: StreamController) {
 		this._io = io;
+		this._streamController = streamController;
 		this.intializeRoutes();
 	}
 
@@ -125,6 +128,7 @@ class RoomController {
 		if (!roomObj)
 			return res.sendStatus(500);
 
+
 		this._io.in(roomObj.Id).emit('room:updated', roomObj.toJSON());
 		this._io.in(roomObj.Id).emit('room:user:joined', userObj?.toJSON());
 		return res.json(roomObj.toJSON());
@@ -181,16 +185,15 @@ class RoomController {
 		if (!req.params.roomId) res.sendStatus(400);
 
 		let room: IRoom | null | undefined = await Rooms.findOne({ Id: req.params.roomId }).exec();
-		if (!room)
-			return res.sendStatus(404);
 
-		const index: number = this.getQueueIndex(room);
+		// @ts-ignore
+        const index: number = this.getQueueIndex(room);
 
 		const queueItem = req.body;
 		queueItem.Position = index + 1;
 
-		room.Queue.push(queueItem);
-		room = await room.save();
+		room?.Queue.push(queueItem);
+		room = await room?.save();
 		if (!room)
 			return res.sendStatus(500);
 
@@ -198,9 +201,11 @@ class RoomController {
 			.populate({ path: 'User.Role', model: 'Role' })
 			.execPopulate();
 
+
+		this.startTorrents(room.Id);
 		this._io.in(room.Id).emit('room:updated', room.toObject());
 		this._io.in(room.Id).emit('room:queue:added', room.toObject());
-		return res.json(room.toJSON());
+		res.json(room.toJSON());
 	};
 
 
@@ -325,6 +330,36 @@ class RoomController {
 
 		return index;
 	}
+
+
+    private async stopTorrents(roomId: string): Promise<string[]> {
+        return new Promise<string[]>(async (resolve, reject) => {
+            const room = await Rooms.findOne({Id: roomId}).exec();
+            if(!room)
+                return  null;
+
+            let torrentHashes = [];
+            for (const queueItem of room.Queue) {
+                torrentHashes.push( await this._streamController.stopStream(queueItem.MagnetUri, roomId));
+            }
+            resolve(torrentHashes);
+        })
+    }
+
+	private async startTorrents(roomId: string): Promise<string[]>{
+	    return new Promise<string[]>(async (resolve, reject) => {
+            const room = await Rooms.findOne({Id: roomId}).exec();
+            if(!room)
+                return  null;
+
+            let torrentHashes = [];
+            for (const queueItem of room.Queue) {
+                torrentHashes.push( await this._streamController.setupStream(queueItem.MagnetUri, roomId));
+            }
+            resolve(torrentHashes);
+        })
+    }
 }
 
 export default RoomController;
+
