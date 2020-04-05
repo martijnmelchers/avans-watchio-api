@@ -39,7 +39,7 @@ class RoomController {
 		// User routes
 		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.kickUser(req, res));
 		this.router.get(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.getUser(req, res));
-		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
+		this.router.post(`${this.path}/:roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
 
 		this.router.put(`${this.path}/:roomId/users/:email`, auth.required, isRoomAdmin,  (req, res) => this.setRole(req,res));
 		this.router.get(`${this.path}/:roomId/users/:email/queue/:position`, auth.required, inRoom,  (req, res) => this.getQueueItem(req,res));
@@ -301,29 +301,36 @@ class RoomController {
 
 	private async inviteUser(req: Request, res: Response) {
 		const roomId: string = req.params.roomId;
-		const room = await Rooms.findOne({ Id: roomId }).exec();
-		const addedUserId = req.body.Id;
+		const room = await Rooms.findOne({ Id: roomId })
+            .populate({path: 'Users.User', model: 'User'})
+            .exec();
+        const userEmail = req.body.email;
+
+        // @ts-ignore
+        if(room?.Users.find((usr) => usr.User.email == userEmail))
+		    return res.sendStatus(400);
+
 		if (!room)
 			return res.sendStatus(404);
 
-		const user: IUser | undefined = req.user as IUser;
-		const userObj = await Users.findOne({ email: user.email }).exec();
-
-		if (!userObj || !addedUserId)
-			return res.sendStatus(400);
-
+		const userObj = await Users.findOne({ email: userEmail }).exec();
+		if (!userObj)
+			return res.sendStatus(404);
 
 		const viewerRole = await this.getRole('Viewer');
 
 		if (!viewerRole)
 			return;
 
-		if (user._id.toString() == room?.Owner.toString()) {
+		const reqUser = req.user as IUser;
+
+
+		if (reqUser.id == room?.Owner.toString()) {
 			const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 				$addToSet: {
 					Users: [{
 						Role: viewerRole._id,
-						User: addedUserId
+						User: userObj._id
 					}]
 				}
 			}, { new: true })
@@ -331,8 +338,9 @@ class RoomController {
 				.populate({ path: 'Users.Role', model: 'Role' })
 				.exec();
 
-			if (!roomObj)
-				return;
+
+			if(!roomObj)
+			    return res.sendStatus(500);
 
 			this._io.in(roomObj.Id).emit('room:user:joined', userObj.toJSON());
 			this._io.in(roomObj.Id).emit('room:updated', roomObj.toJSON());
