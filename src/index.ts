@@ -6,6 +6,7 @@ import UserController from './controllers/user.controller';
 import StreamController from './controllers/stream.controller';
 import RoomController from './controllers/room.controller';
 import dotenv from 'dotenv';
+import SocketController from './controllers/socket.controller';
 // Configure .env file
 dotenv.config();
 
@@ -23,11 +24,12 @@ const client: WebTorrent.Instance = new WebTorrent();
 const io = require("socket.io")(server);
 
 
-let stream = new StreamController(io);
+const stream = new StreamController(io);
+const socket = new SocketController(io, stream);
 AppInstance.initializeControllers([
 	new UserController(),
 	stream,
-	new RoomController(io, stream)
+	new RoomController(io, stream, socket)
 ]);
 
 mongoose.connect("mongodb://localhost/test", { useUnifiedTopology: true, useNewUrlParser: true });

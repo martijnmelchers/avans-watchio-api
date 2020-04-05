@@ -1,12 +1,12 @@
 import express, { NextFunction, Request, Response } from "express";
 import auth from '../config/auth';
-import WebTorrent from 'webtorrent';
+import WebTorrent, { Torrent } from 'webtorrent';
 import pump from 'pump';
 import rangeParser from 'range-parser';
 import mime from "mime";
 import { Server } from 'socket.io';
 import rimraf from 'rimraf';
-
+import {EventEmitter} from 'events';
 //
 class StreamController {
 	private static videoTypes: Array<string> = [
@@ -15,21 +15,26 @@ class StreamController {
 	];
 	public path = '/stream';
 	public router = express.Router();
-	private _file: WebTorrent.TorrentFile | undefined;
-	private _io: Server;
-	private _client: WebTorrent.Instance;
+	private readonly _io: Server;
+	private readonly _client: WebTorrent.Instance;
+	private readonly _emitter: EventEmitter;
 
 	constructor(io: Server) {
 		this._client = new WebTorrent();
 		this._io = io;
-		this.intializeRoutes();
+		this._emitter = new EventEmitter();
+		this.initializeRoutes();
+
+		this._client.on('torrent', (torrent) => {
+			this._emitter.emit(`torrent:${torrent.infoHash}:ready`)
+		})
 	}
 
-	public setFile(file: WebTorrent.TorrentFile) {
-		this._file = file;
+	public once(event: string, fn: (...args: any[]) => void) {
+		this._emitter.once(event, fn);
 	}
 
-	public intializeRoutes() {
+	public initializeRoutes() {
 		this.router.get(`${this.path}/:hash`, auth.optional, this.getStream);
 	}
 
@@ -41,17 +46,17 @@ class StreamController {
 			return torrent.infoHash;
 		}
 
-		this._client.add(magnetUri, ((torrent) => {
+		this._client.add(magnetUri, (torrent: Torrent) => {
 			console.log(torrent.infoHash);
 			torrent.on('done', () => this.onDone(torrent, room));
-			// @ts-ignore
-			torrent.on('download', (bytes) => this.onProgress(torrent, room));
+			torrent.on('download', () => this.onProgress(torrent, room));
+
 
 			return torrent.infoHash;
-		}));
+		});
 	}
 
-	public stopStream(magnetUri: string, room: string): Promise<string> {
+	public stopStream(magnetUri: string): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
 			let torrent = this._client.get(magnetUri) as WebTorrent.Torrent;
 			if (!torrent) {
