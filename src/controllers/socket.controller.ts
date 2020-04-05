@@ -8,7 +8,7 @@ import { IQueueItem } from '../documents/queue.interface';
 export default class SocketController {
 	private readonly _io: Server;
 	private readonly _streamController: StreamController;
-	private socketInfo: { socketId: string, userId: string, roomId: string, ready: boolean }[] = [];
+	private socketInfo: { socketId: string, userId: string, roomId: string }[] = [];
 	private torrentInfo: { hash: string, ready: boolean }[] = [];
 
 	constructor(io: Server, streamController: StreamController) {
@@ -40,7 +40,6 @@ export default class SocketController {
 			socketId: socket.id,
 			userId: user._id,
 			roomId: room.Id,
-			ready: false
 		});
 
 		if (this.getOnlineUsers(room.Id).length == 1)
@@ -53,7 +52,6 @@ export default class SocketController {
 		socket.emit('room:user:online', this.getOnlineUsers(room.Id));
 		this._streamController.sendProgress(await this.getTorrents(room.Id), room.Id);
 		this._io.in(room.Id).emit('room:user:online', this.getOnlineUsers(room.Id));
-		this._io.in(room.Id).emit('room:user:ready', this.getReadyUsers(room.Id));
 	}
 
 	public async startTorrents(roomId: string): Promise<void> {
@@ -80,7 +78,7 @@ export default class SocketController {
 						return;
 
 					existing.ready = true;
-					this._io.in(roomId).emit('room:torrent:ready', { hash: existing.hash });
+					this._io.in(roomId).emit(`room:torrent:${existing.hash}:ready`, { hash: existing.hash });
 				});
 			}
 		}
@@ -93,10 +91,11 @@ export default class SocketController {
 	private onConnect(socket: Socket) {
 		// Current room is also stored locally.
 		socket.on('room:connect', (data) => this.connectRoom(socket, data));
-		socket.on('room:user:ready', (ready) => this.updateReady(socket, ready));
 		socket.on('room:user:play', (data) => this.sendPlayEvent(socket, data));
 		socket.on('room:user:pause', () => this.sendPauseEvent(socket));
 		socket.on('room:torrent:canStream', (hash) => this.isStreamable(socket, hash));
+		socket.on('room:player:askSync', () => this.askSync(socket));
+		socket.on('room:player:replySync', (data) => this.sendSync(socket, data));
 		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
 
@@ -145,16 +144,6 @@ export default class SocketController {
 		return connectedUsers;
 	}
 
-	private getReadyUsers(roomId: string) {
-		const readyUsers: string[] = [];
-		const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId && x.ready);
-
-		for (const socket of connectedSockets)
-			readyUsers.push(socket.userId);
-
-		return readyUsers;
-	}
-
 	private disconnectRoom(socket: SocketIO.Socket) {
 		const socketInfo = this.findSocket(socket);
 
@@ -169,20 +158,10 @@ export default class SocketController {
 			this.stopTorrents(socketInfo.roomId);
 		}
 
-		// Send ready and online events so the clients can be updated.
+		// Send online events so the clients can be updated.
 		this._io.in(socketInfo.roomId).emit('room:user:online', this.getOnlineUsers(socketInfo.roomId));
-		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
 	}
 
-	private updateReady(socket: SocketIO.Socket, ready: boolean) {
-		const socketInfo = this.findSocket(socket);
-
-		if (!socketInfo)
-			return;
-
-		socketInfo.ready = ready;
-		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
-	}
 
 	private sendPlayEvent(socket: Socket, currentTime: number) {
 		const socketInfo = this.findSocket(socket);
@@ -241,12 +220,29 @@ export default class SocketController {
 		const socketInfo = this.findSocket(socket);
 		const torrentInfo = this.torrentInfo.find(x => x.hash === hash);
 
-		if(!socketInfo)
+		if (!socketInfo || !torrentInfo)
 			return;
 
-		if (!torrentInfo)
-			return this._io.in(socketInfo.roomId).emit('room:torrent:streamable', false);
 
-		this._io.in(socketInfo.roomId).emit('room:torrent:streamable', torrentInfo.ready)
+		this._io.in(socketInfo.roomId).emit(`room:torrent:${torrentInfo.hash}:streamable`, torrentInfo.ready);
+	}
+
+	private askSync(socket: Socket) {
+		const socketInfo = this.findSocket(socket);
+
+		if (!socketInfo)
+			return;
+
+		this._io.in(socketInfo.roomId).emit('room:player:askSync', socketInfo.userId);
+	}
+
+	private sendSync(socket: Socket, data: any) {
+		const socketInfo = this.findSocket(socket);
+
+		if (!socketInfo)
+			return;
+
+		this._io.in(socketInfo.roomId).emit('room:player:answerSync', data);
+
 	}
 }

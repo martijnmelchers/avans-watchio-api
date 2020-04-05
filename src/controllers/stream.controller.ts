@@ -6,7 +6,8 @@ import rangeParser from 'range-parser';
 import mime from "mime";
 import { Server } from 'socket.io';
 import rimraf from 'rimraf';
-import {EventEmitter} from 'events';
+import { EventEmitter } from 'events';
+
 //
 class StreamController {
 	private static videoTypes: Array<string> = [
@@ -18,6 +19,7 @@ class StreamController {
 	private readonly _io: Server;
 	private readonly _client: WebTorrent.Instance;
 	private readonly _emitter: EventEmitter;
+	private readonly lastEvents: { [key: string]: number } = {};
 
 	constructor(io: Server) {
 		this._client = new WebTorrent();
@@ -26,8 +28,8 @@ class StreamController {
 		this.initializeRoutes();
 
 		this._client.on('torrent', (torrent) => {
-			this._emitter.emit(`torrent:${torrent.infoHash}:ready`)
-		})
+			this._emitter.emit(`torrent:${torrent.infoHash}:ready`);
+		});
 	}
 
 	public once(event: string, fn: (...args: any[]) => void) {
@@ -42,14 +44,16 @@ class StreamController {
 	public setupStream(magnetUri: string, room: string) {
 		let torrent = this._client.get(magnetUri);
 		if (torrent) {
-			console.log(torrent.infoHash);
 			return torrent.infoHash;
 		}
 
 		this._client.add(magnetUri, (torrent: Torrent) => {
-			console.log(torrent.infoHash);
+			console.log(`Starting tracking of ${torrent.name}`);
+
+			this.lastEvents[torrent.infoHash] = 0;
 			torrent.on('done', () => this.onDone(torrent, room));
 			torrent.on('download', () => this.onProgress(torrent, room));
+
 
 
 			return torrent.infoHash;
@@ -62,6 +66,10 @@ class StreamController {
 			if (!torrent) {
 				return resolve(undefined);
 			}
+
+			console.log(`Stopping tracking of ${torrent.name}`);
+
+
 			this._client.remove(torrent, ((err) => {
 				if (err) {
 					return reject(err);
@@ -189,12 +197,16 @@ class StreamController {
 	};
 
 	private onProgress(torrent: WebTorrent.Torrent, roomId: string) {
-		this._io.to(roomId).emit("room:torrent:progress", {
-			progress: torrent.progress,
-			speed: torrent.downloadSpeed,
-			peers: torrent.numPeers,
-			hash: torrent.infoHash
-		});
+		if (Math.abs(this.lastEvents[torrent.infoHash] - torrent.progress) > 0.01) {
+			this._io.to(roomId).emit("room:torrent:progress", {
+				progress: torrent.progress,
+				speed: torrent.downloadSpeed,
+				peers: torrent.numPeers,
+				hash: torrent.infoHash
+			});
+
+			this.lastEvents[torrent.infoHash] = torrent.progress;
+		}
 	}
 
 	private onDone(torrent: WebTorrent.Torrent, roomId: string) {

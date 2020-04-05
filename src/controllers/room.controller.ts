@@ -201,28 +201,33 @@ class RoomController {
 		const index: number = this.getQueueIndex(room);
 
 
-		let infoHash = parseTorrent(req.body.MagnetUri).infoHash;
-		if (!infoHash)
+		try {
+			let infoHash = parseTorrent(req.body.MagnetUri)?.infoHash;
+			if (!infoHash)
+				return res.sendStatus(400);
+
+			const queueItem = req.body;
+			queueItem.Position = index + 1;
+			queueItem.InfoHash = infoHash;
+
+			room?.Queue.push(queueItem);
+			room = await room?.save();
+			if (!room)
+				return res.sendStatus(500);
+
+			room = await room.populate({ path: 'Users.User', model: 'User' })
+				.populate({ path: 'User.Role', model: 'Role' })
+				.execPopulate();
+
+
+			await this._socketController.startTorrents(room.Id);
+			this._io.in(room.Id).emit('room:updated', room.toObject());
+			this._io.in(room.Id).emit('room:queue:added', room.toObject());
+			res.json(room.toJSON());
+		} catch(e) {
 			return res.sendStatus(400);
+		}
 
-		const queueItem = req.body;
-		queueItem.Position = index + 1;
-		queueItem.InfoHash = infoHash;
-
-		room?.Queue.push(queueItem);
-		room = await room?.save();
-		if (!room)
-			return res.sendStatus(500);
-
-		room = await room.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'User.Role', model: 'Role' })
-			.execPopulate();
-
-
-		await this._socketController.startTorrents(room.Id);
-		this._io.in(room.Id).emit('room:updated', room.toObject());
-		this._io.in(room.Id).emit('room:queue:added', room.toObject());
-		res.json(room.toJSON());
 	};
 
 	private async removeFromQueue(req: Request, res: Response) {
