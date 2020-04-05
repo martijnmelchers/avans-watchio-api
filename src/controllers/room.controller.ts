@@ -2,7 +2,7 @@ import { default as express, Request, Response } from 'express';
 import Rooms, { IRoom } from '../documents/room.interface';
 import auth from '../config/auth';
 import Users, { IUser } from '../documents/user.interface';
-import Roles, {IRole} from '../documents/role.interface';
+import Roles from '../documents/role.interface';
 import { IQueueItem } from '../documents/queue.interface';
 import { Server } from 'socket.io';
 import { inRoom } from '../middleware/in-room.middleware';

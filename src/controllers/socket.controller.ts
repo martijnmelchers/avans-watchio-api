@@ -79,6 +79,7 @@ export default class SocketController {
 
 					existing.ready = true;
 					this._io.in(roomId).emit(`room:torrent:${existing.hash}:ready`, { hash: existing.hash });
+					this._io.in(roomId).emit(`room:torrent:ready`, existing.hash);
 				});
 			}
 		}

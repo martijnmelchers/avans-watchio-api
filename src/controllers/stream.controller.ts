@@ -55,7 +55,6 @@ class StreamController {
 			torrent.on('download', () => this.onProgress(torrent, room));
 
 
-
 			return torrent.infoHash;
 		});
 	}
@@ -85,7 +84,10 @@ class StreamController {
 
 	public sendProgress(magnetUris: string[], roomId: string) {
 		magnetUris.forEach((magnetUri) => {
-			let torrent = this._client.get(magnetUri) as WebTorrent.Torrent;
+			let torrent = this._client.get(magnetUri);
+
+			if (!torrent)
+				return;
 
 			if (torrent.done) {
 				this.onDone(torrent, roomId);
@@ -99,6 +101,9 @@ class StreamController {
 				hash: torrent.infoHash
 			};
 			this._io.to(roomId).emit('room:torrent:progress', torrentData);
+
+			if (torrent.ready)
+				this._io.to(roomId).emit('room:torrent:ready', torrent.infoHash);
 		});
 	}
 
@@ -197,6 +202,7 @@ class StreamController {
 	};
 
 	private onProgress(torrent: WebTorrent.Torrent, roomId: string) {
+		// Limit the events so the client doesn't get spammed...
 		if (Math.abs(this.lastEvents[torrent.infoHash] - torrent.progress) > 0.01) {
 			this._io.to(roomId).emit("room:torrent:progress", {
 				progress: torrent.progress,
@@ -209,10 +215,8 @@ class StreamController {
 		}
 	}
 
-	private onDone(torrent: WebTorrent.Torrent, roomId: string) {
-		this._io.to(roomId).emit('room:torrent:done', {
-			hash: torrent.infoHash
-		});
+	private onDone(torrent: Torrent, roomId: string) {
+		this._io.to(roomId).emit('room:torrent:done', torrent.infoHash);
 	}
 }
 
