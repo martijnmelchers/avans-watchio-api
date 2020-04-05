@@ -42,6 +42,8 @@ class RoomController {
 		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
 
 		this.router.put(`${this.path}/:roomId/users/:email`, auth.required, isRoomAdmin,  (req, res) => this.setRole(req,res));
+		this.router.get(`${this.path}/:roomId/users/:email/queue/:position`, auth.required, inRoom,  (req, res) => this.getQueueItem(req,res));
+		this.router.get(`${this.path}/:roomId/users/:email/queue/`, auth.required, inRoom,(req, res) => this.getQueue(req,res));
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, isRoomManager, (req, res) => this.addToQueue(req, res));
@@ -374,7 +376,6 @@ class RoomController {
 		return res.sendStatus(401);
 	};
 
-
 	private async setRole(req: Request, res: Response){
         const permissionLevel = req.body.PermissionLevel;
         if(!permissionLevel)
@@ -406,6 +407,50 @@ class RoomController {
         return res.json(room.toJSON());
     }
 
+    private async getQueue(req: Request, res: Response) {
+        const roomId = req.params.roomId;
+        const email = req.params.email;
+
+        const user = await Users.findOne({email: email}).exec();
+
+        if (!roomId || !email || !user)
+            return res.sendStatus(404);
+
+        const room = await Rooms.findOne({Id: roomId})
+            .populate({path:'Users.User', model: 'User'})
+            .populate({path:'Users.Role', model: 'Role'})
+            .exec();
+
+        const roomItems =  room?.Queue.filter((x) => x.Owner?.toString() == user._id.toString());
+        return res.json(roomItems);
+    }
+
+    private async getQueueItem(req:Request, res:Response){
+        const roomId = req.params.roomId;
+        const email = req.params.email;
+        const position = req.params.position;
+        const user = await Users.findOne({email: email}).exec();
+
+        if (!roomId || !email || !user || !position)
+            return res.sendStatus(404);
+
+        const room = await Rooms.findOne({Id: roomId})
+            .populate({path:'Users.User', model: 'User'})
+            .populate({path:'Users.Role', model: 'Role'})
+            .exec();
+
+        let roomItems =  room?.Queue.filter((x) => x.Owner?.toString() == user._id.toString());
+        if(!roomItems)
+            roomItems = [];
+
+
+        let item = roomItems.find((x) => x.Position == position);
+        if(!item){
+            return res.sendStatus(404);
+        }
+
+        return res.json(item);
+    }
 	private async getRole(roleName: string) {
 		return await Roles.findOne({ Name: roleName }).exec();
 	}
