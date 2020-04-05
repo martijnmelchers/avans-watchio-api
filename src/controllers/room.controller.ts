@@ -391,7 +391,7 @@ class RoomController {
 		const reqUser = req.user as IUser;
 
 
-		if (reqUser.id == room?.Owner.toString()) {
+		if (reqUser._id == room?.Owner.toString()) {
 			const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 				$addToSet: {
 					Users: [{
@@ -430,7 +430,6 @@ class RoomController {
 		const kickedUser = await Users.findOne({ email: email }).exec();
 		if (!kickedUser)
 			return res.sendStatus(404);
-
 
 		if (user.id == room.Owner.toString()) {
 			const updatedRoom = await Rooms

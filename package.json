@@ -6,10 +6,18 @@
   "scripts": {
     "start": "tsc && node .",
     "nodemon": "nodemon --watch src -e ts,esj --exec npm run start",
-    "test": "mocha -r ts-node/register tests/**/*.test.ts",
-    "coverage": "nyc -r lcov -e .ts -x \"*.test.ts\" npm run test",
+    "test": "mocha -r ts-node/register tests/**/*.test.ts --timeout 15000 --exit ",
+    "coverage": "nyc npm run test",
     "seed": "node seed.role.js"
   },
+    "nyc": {
+        "extends": "@istanbuljs/nyc-config-typescript",
+        "all": true,
+        "reporter": [
+            "text",
+            "lcov"
+        ]
+    },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/avans-webs5/assessment-1819-saschamartijn.git"
@@ -33,17 +41,20 @@
     "@types/passport-google-oauth20": "^2.0.3",
     "@types/pump": "^1.1.0",
     "@types/socket.io": "^2.1.4",
+    "@types/supertest": "^2.0.8",
     "@types/webtorrent": "^0.107.1",
     "chai": "^4.2.0",
     "express": "^4.17.1",
     "mongoose": "^5.9.6",
     "nodemon": "^2.0.2",
     "nyc": "^15.0.1",
+    "supertest": "^4.0.2",
     "tsyringe": "^4.1.0",
     "typescript": "^3.8.3",
     "webtorrent": "^0.107.17"
   },
   "dependencies": {
+    "@istanbuljs/nyc-config-typescript": "^1.0.1",
     "@types/dotenv": "^8.2.0",
     "@types/express-jwt": "0.0.42",
     "@types/jsonwebtoken": "^8.3.8",
