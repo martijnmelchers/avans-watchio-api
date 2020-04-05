@@ -199,7 +199,7 @@ class RoomController {
 
 	private async addToQueue(req: Request, res: Response) {
 		if (!req.params.roomId) res.sendStatus(400);
-
+		const user = req.user as IUser;
 		let room: IRoom | null | undefined = await Rooms.findOne({ Id: req.params.roomId }).exec();
 		// @ts-ignore
 		const index: number = this.getQueueIndex(room);
@@ -214,6 +214,7 @@ class RoomController {
 			delete queueItem.tmdbId;
 
 			const tmdbItem = await TmdbService.getItem(tmdbId);
+			queueItem.Owner = user.id;
 			queueItem.Position = index + 1;
 			queueItem.InfoHash = infoHash;
 			queueItem.Title = tmdbItem.title;
@@ -284,8 +285,9 @@ class RoomController {
 	private async moveQueue(req: Request, res: Response) {
 		if (!req.params.roomId) res.sendStatus(400);
 
-		const oldPos = req.body.oldPos;
-		const newPos = req.body.newPos;
+		// Add one to new position because it starts at one
+		const oldPos = req.body.oldPos + 1;
+		const newPos = req.body.newPos + 1;
 		if (!oldPos || !newPos)
 			return res.sendStatus(400);
 
@@ -298,65 +300,70 @@ class RoomController {
 			return res.sendStatus(404);
 
 
-		let oldIndex = -1;
-		let newIndex = -1;
-
-		room.Queue.forEach((item, index) => {
-			if (item.Position == oldPos) {
-				oldIndex = index;
+		if (newPos < room.Queue.length) {
+			for (let item of room.Queue) {
+				if (oldPos > newPos) {
+					if (item.Position < oldPos)
+						item.Position = item.Position + 1;
+					else if (item.Position == oldPos)
+						item.Position = newPos;
+				} else {
+					if (item.Position > oldPos)
+						item.Position--;
+					else if (item.Position == oldPos)
+						item.Position = newPos;
+				}
 			}
-			if (item.Position == newPos) {
-				newIndex = index;
-			}
-		});
+		}
 
-		room.Queue[oldIndex].Position = newPos;
-		room.Queue[newIndex].Position = oldPos;
 
-		room = await Rooms.findOneAndUpdate({ Id: room.Id }, { Queue: room.Queue }, { new: true }).exec();
+		room = await Rooms.findOneAndUpdate({ Id: room.Id }, { Queue: room.Queue }, { new: true })
+			.populate({ path: 'Users.User', model: 'User' })
+			.populate({ path: 'Users.Role', model: 'Role' })
+			.exec();
 		if (!room)
 			return res.sendStatus(500);
 
 
-        this._io.in(room.Id).emit('room:updated', room);
-        this._io.in(room.Id).emit('room:queue:removed', room);
+		this._io.in(room.Id).emit('room:updated', room);
+		this._io.in(room.Id).emit('room:queue:removed', room);
 		return res.json(room.toJSON());
 	}
 
 
-	private async nextQueue(req: Request, res:Response){
-	    const posNum = 1;
-        // @ts-ignore
-        let roomOld = await Rooms.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Queue: { Position: posNum } } }, { new: true })
-            .populate({ path: 'Users.User', model: 'User' })
-            .populate({ path: 'Users.Role', model: 'Role' })
-            .exec();
+	private async nextQueue(req: Request, res: Response) {
+		const posNum = 1;
+		// @ts-ignore
+		let roomOld = await Rooms.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Queue: { Position: posNum } } }, { new: true })
+			.populate({ path: 'Users.User', model: 'User' })
+			.populate({ path: 'Users.Role', model: 'Role' })
+			.exec();
 
-        if (!roomOld)
-            return res.sendStatus(500);
+		if (!roomOld)
+			return res.sendStatus(500);
 
 
-        roomOld.Queue.forEach((item, index) => {
+		roomOld.Queue.forEach((item, index) => {
 
-            if (item.Position > posNum) {
-                // @ts-ignore
-                roomOld.Queue[index].Position = roomOld?.Queue[index].Position - 1;
-            }
-        });
+			if (item.Position > posNum) {
+				// @ts-ignore
+				roomOld.Queue[index].Position = roomOld?.Queue[index].Position - 1;
+			}
+		});
 
-        console.log(roomOld.Queue);
-        let roomNew  = await Rooms.findByIdAndUpdate(roomOld._id, { Queue: roomOld.Queue }, { new: true })
-            .populate({ path: 'Users.User', model: 'User' })
-            .populate({ path: 'Users.Role', model: 'Role' })
-            .exec();
+		console.log(roomOld.Queue);
+		let roomNew = await Rooms.findByIdAndUpdate(roomOld._id, { Queue: roomOld.Queue }, { new: true })
+			.populate({ path: 'Users.User', model: 'User' })
+			.populate({ path: 'Users.Role', model: 'Role' })
+			.exec();
 
-        if (roomNew)
-            roomOld = roomNew;
+		if (roomNew)
+			roomOld = roomNew;
 
-        this._io.in(roomOld.Id).emit('room:updated', roomOld);
-        this._io.in(roomOld.Id).emit('room:queue:removed', roomOld);
-        return res.json(roomOld);
-    }
+		this._io.in(roomOld.Id).emit('room:updated', roomOld);
+		this._io.in(roomOld.Id).emit('room:queue:removed', roomOld);
+		return res.json(roomOld);
+	}
 
 	private async getUser(req: Request, res: Response) {
 		if (!req.params.roomId || !req.params.email) res.sendStatus(400);
