@@ -4,9 +4,9 @@ import auth from '../config/auth';
 import Users, { IUser } from '../documents/user.interface';
 import Roles from '../documents/role.interface';
 import { IQueueItem } from '../documents/queue.interface';
-import SocketIO, {Server, Socket} from 'socket.io';
+import SocketIO, { Server, Socket } from 'socket.io';
 import App from '../app';
-import {inRoom} from '../middleware/in-room.middleware';
+import { inRoom } from '../middleware/in-room.middleware';
 import StreamController from './stream.controller';
 import * as jwt from 'jsonwebtoken';
 import parseTorrent from 'parse-torrent';
@@ -17,7 +17,7 @@ class RoomController {
 	private _app: App | undefined;
 	private _io: Server;
 	private _streamController: StreamController;
-    private socketInfo: { socketId: string, userId: string, roomId: string, ready: boolean }[] = [];
+	private socketInfo: { socketId: string, userId: string, roomId: string, ready: boolean }[] = [];
 
 	constructor(io: Server, streamController: StreamController) {
 		this._io = io;
@@ -33,31 +33,69 @@ class RoomController {
 		this.router.delete(`${this.path}/:roomId/leave`, auth.required, inRoom, (req, res) => this.leaveRoom(req, res));
 		this.router.get(`${this.path}/:roomId`, auth.required, inRoom, this.getRoom);
 		this.router.post(`${this.path}`, auth.required, this.createRoom);
-		this.router.delete(`${this.path}/:roomId`, auth.required, inRoom, (req:any , res:any) => this.deleteRoom(req, res));
+		this.router.delete(`${this.path}/:roomId`, auth.required, inRoom, (req: any, res: any) => this.deleteRoom(req, res));
 
 		// User routes
 		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.kickUser(req, res));
-		this.router.get(`${this.path}/:roomId/users/:email`, auth.required,inRoom,  (req, res) => this.getUser(req, res));
+		this.router.get(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.getUser(req, res));
 
-		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom,  (req, res) => this.inviteUser(req, res));
+		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, inRoom, (req, res) => this.addToQueue(req, res));
 		this.router.delete(`${this.path}/:roomId/queue/:queueItemPos`, auth.required, inRoom, (req, res) => this.removeFromQueue(req, res));
 	}
 
-	private initializeSocket(){
-        this._io.on('connection', (socket: Socket) => this.onConnect(socket));
-    }
+	// Checks if the user is part of this room and connects to it.
+	async connectRoom(socket: Socket, data: { user: string, room: string }) {
+		if (!this.authenticateSocket(data.user, data.room)) {
+			// socket.emit('error', {message: 'You are not in this room'});
+		}
+
+		const user = await this.authenticate(data.user);
+		const room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users.User', model: 'User' });
+		if (!room) {
+			socket.emit('room:error', { message: "Invalid room provided." });
+			return;
+		}
+
+		// Leave all rooms the socket is currently in.
+		socket.leaveAll();
+
+		console.log(`${user.email} connected to room ${room.Id}`);
+
+		// Set the id of the socket to the id of the user.
+		this.socketInfo.push({
+			socketId: socket.id,
+			userId: user._id,
+			roomId: room.Id,
+			ready: false
+		});
+
+		this.startTorrents(room.Id);
+
+		// Connect to the room.
+		socket.join(room.Id);
+		// Send the connected event and roomData to the client.
+		socket.emit('room:connected', room.toObject());
+		socket.emit('room:user:online', this.getOnlineUsers(room.Id));
+		this._streamController.sendProgress(await this.getTorrents(room.Id), room.Id);
+		this._io.in(room.Id).emit('room:user:online', this.getOnlineUsers(room.Id));
+		this._io.in(room.Id).emit('room:user:ready', this.getReadyUsers(room.Id));
+	}
+
+	private initializeSocket() {
+		this._io.on('connection', (socket: Socket) => this.onConnect(socket));
+	}
 
 	private async getRooms(req: Request, res: Response) {
-	    const user = req.user as IUser;
-		res.json(await Rooms.find({'Users.User': {$ne: user.id}}));
+		const user = req.user as IUser;
+		res.json(await Rooms.find({ 'Users.User': { $ne: user.id } }));
 	};
 
 	private async getRoomsPaging(req: Request, res: Response) {
-        const user = req.user as IUser;
-        res.json(await Rooms.find({'Users.User': {$ne: user.id}}).skip((Number(req.params.page) - 1) * 20).limit(20));
+		const user = req.user as IUser;
+		res.json(await Rooms.find({ 'Users.User': { $ne: user.id } }).skip((Number(req.params.page) - 1) * 20).limit(20));
 	};
 
 	private async getRoom(req: Request, res: Response) {
@@ -72,7 +110,7 @@ class RoomController {
 			console.log("An error occurred while getting the room!");
 		}
 
-		res.status(404)
+		res.status(404);
 	};
 
 	private async createRoom(req: Request, res: Response) {
@@ -147,7 +185,6 @@ class RoomController {
 		return res.json(roomObj.toJSON());
 	};
 
-
 	private async leaveRoom(req: Request, res: Response) {
 		const roomId: string = req.params.roomId;
 		const user: IUser | undefined = req.user as IUser;
@@ -194,23 +231,21 @@ class RoomController {
 		});
 	};
 
-
 	private async addToQueue(req: Request, res: Response) {
 		if (!req.params.roomId) res.sendStatus(400);
 
 		let room: IRoom | null | undefined = await Rooms.findOne({ Id: req.params.roomId }).exec();
 		// @ts-ignore
-        const index: number = this.getQueueIndex(room);
+		const index: number = this.getQueueIndex(room);
 
 
-
-        let infoHash = parseTorrent(req.body.MagnetUri).infoHash;
-        if(!infoHash)
-            return res.sendStatus(400);
+		let infoHash = parseTorrent(req.body.MagnetUri).infoHash;
+		if (!infoHash)
+			return res.sendStatus(400);
 
 		const queueItem = req.body;
 		queueItem.Position = index + 1;
-        queueItem.InfoHash = infoHash;
+		queueItem.InfoHash = infoHash;
 
 		room?.Queue.push(queueItem);
 		room = await room?.save();
@@ -227,7 +262,6 @@ class RoomController {
 		this._io.in(room.Id).emit('room:queue:added', room.toObject());
 		res.json(room.toJSON());
 	};
-
 
 	private async removeFromQueue(req: Request, res: Response) {
 		if (!req.params.roomId || !req.params.queueItemPos) res.sendStatus(400);
@@ -248,7 +282,6 @@ class RoomController {
 				return res.json(updated.toJSON());
 			});
 	};
-
 
 	private async getUser(req: Request, res: Response) {
 		if (!req.params.roomId || !req.params.email) res.sendStatus(400);
@@ -300,7 +333,6 @@ class RoomController {
 		return res.sendStatus(401);
 	};
 
-
 	private async kickUser(req: Request, res: Response) {
 		const user = req.user as IUser;
 		const email = req.params.email;
@@ -335,7 +367,6 @@ class RoomController {
 		return res.sendStatus(401);
 	};
 
-
 	private async getRole(roleName: string) {
 		return await Roles.findOne({ Name: roleName }).exec();
 	}
@@ -351,196 +382,161 @@ class RoomController {
 		return index;
 	}
 
-	private async getTorrents(roomId: string): Promise<string[] > {
-	    const room = await Rooms.findOne({Id: roomId}).exec();
-	    if(!room)
-	        return [];
+	private async getTorrents(roomId: string): Promise<string[]> {
+		const room = await Rooms.findOne({ Id: roomId }).exec();
+		if (!room)
+			return [];
 
-	    return room.Queue.map((queueItem:IQueueItem) => queueItem.MagnetUri);
-    }
+		return room.Queue.map((queueItem: IQueueItem) => queueItem.MagnetUri);
+	}
 
-    private async stopTorrents(roomId: string): Promise<string[]> {
-            const room = await Rooms.findOne({Id: roomId}).exec();
-            if(!room)
-                return  [];
-            let torrentHashes = [];
-            for (const queueItem of room.Queue) {
-                torrentHashes.push( await this._streamController.stopStream(queueItem.MagnetUri, roomId));
-            }
-            return torrentHashes
-    }
-
-	private async startTorrents(roomId: string): Promise<string[]>{
-            const room = await Rooms.findOne({Id: roomId}).exec();
-            if(!room)
-                return [];
-
-            let torrentHashes: string[] = [];
-            for (const queueItem of room.Queue) {
-                let torrentHash = this._streamController.setupStream(queueItem.MagnetUri, roomId);
-                if(torrentHash)
-                    torrentHashes.push();
-            }
-            return torrentHashes;
-    }
+	private async stopTorrents(roomId: string): Promise<string[]> {
+		const room = await Rooms.findOne({ Id: roomId }).exec();
+		if (!room)
+			return [];
+		let torrentHashes = [];
+		for (const queueItem of room.Queue) {
+			torrentHashes.push(await this._streamController.stopStream(queueItem.MagnetUri, roomId));
+		}
+		return torrentHashes;
+	}
 
 
-    /*
-        Start socket routes
-     */
+	/*
+		Start socket routes
+	 */
 
-    // Checks if the user is part of this room and connects to it.
-    async connectRoom(socket: Socket, data: { user: string, room: string }) {
-        if (!this.authenticateSocket(data.user, data.room)) {
-            // socket.emit('error', {message: 'You are not in this room'});
-        }
+	private async startTorrents(roomId: string): Promise<string[]> {
+		const room = await Rooms.findOne({ Id: roomId }).exec();
+		if (!room)
+			return [];
 
-        const user = await this.authenticate(data.user);
-        const room = await Rooms.findOne({ Id: data.room }).populate({ path: 'Users.User', model: 'User' });
-        if (!room) {
-            socket.emit('room:error', { message: "Invalid room provided." });
-            return;
-        }
+		let torrentHashes: string[] = [];
+		for (const queueItem of room.Queue) {
+			let torrentHash = this._streamController.setupStream(queueItem.MagnetUri, roomId);
+			if (torrentHash)
+				torrentHashes.push();
+		}
+		return torrentHashes;
+	}
 
-        // Leave all rooms the socket is currently in.
-        socket.leaveAll();
+	private onConnect(socket: Socket) {
+		// Current room is also stored locally.
+		socket.on('room:connect', (data) => this.connectRoom(socket, data));
+		socket.on('room:user:ready', (ready) => this.updateReady(socket, ready));
+		socket.on('room:user:play', (data) => this.sendPlayEvent(socket, data));
+		socket.on('room:user:pause', () => this.sendPauseEvent(socket));
+		socket.on('disconnect', () => this.disconnectRoom(socket));
+	}
 
-        console.log(`${user.email} connected to room ${room.Id}`);
+	private authenticateSocket(token: string, roomId: string): Promise<boolean> {
+		return new Promise<boolean>(async (resolve) => {
+			jwt.verify(token, 'secret', (err, decoded: any) => {
+				if (err) throw err;
 
-        // Set the id of the socket to the id of the user.
-        this.socketInfo.push({
-            socketId: socket.id,
-            userId: user._id,
-            roomId: room.Id,
-            ready: false
-        });
+				Users.findOne({ email: decoded.email }, async (err, user: IUser) => {
+					const room: IRoom | null = await Rooms.findOne({ Id: roomId }).populate({
+						path: 'Users',
+						model: 'User'
+					});
 
-        this.startTorrents(room.Id);
+					if (!room)
+						return resolve(false);
 
-        // Connect to the room.
-        socket.join(room.Id);
-        // Send the connected event and roomData to the client.
-        socket.emit('room:connected', room.toObject());
-        socket.emit('room:user:online', this.getOnlineUsers(room.Id));
-        this._streamController.sendProgress(await this.getTorrents(room.Id), room.Id);
-        this._io.in(room.Id).emit('room:user:online', this.getOnlineUsers(room.Id));
-        this._io.in(room.Id).emit('room:user:ready', this.getReadyUsers(room.Id));
-    }
+					const inRoom = (room.Users.find((us) => us.toString() == user.toString()) != undefined);
 
+					return resolve(inRoom);
+				});
 
-    private onConnect(socket: Socket) {
-        // Current room is also stored locally.
-        socket.on('room:connect', (data) => this.connectRoom(socket, data));
-        socket.on('room:user:ready', (ready) => this.updateReady(socket, ready));
-        socket.on('room:user:play', (data) => this.sendPlayEvent(socket, data));
-        socket.on('room:user:pause', () => this.sendPauseEvent(socket));
-        socket.on('disconnect', () => this.disconnectRoom(socket));
-    }
+				return resolve(false);
+			});
+		});
+	}
 
-    private authenticateSocket(token: string, roomId: string): Promise<boolean> {
-        return new Promise<boolean>(async (resolve) => {
-            jwt.verify(token, 'secret', (err, decoded: any) => {
-                if (err) throw err;
+	private authenticate(token: string): Promise<IUser> {
+		return new Promise<IUser>((resolve, reject) => {
+			jwt.verify(token, 'secret', (err, decoded: any) => {
+				if (err) throw err;
+				Users.findOne({ email: decoded.email }, (err, res: IUser) => {
+					resolve(res);
+				});
+			});
+		});
+	}
 
-                Users.findOne({ email: decoded.email }, async (err, user: IUser) => {
-                    const room: IRoom | null = await Rooms.findOne({ Id: roomId }).populate({
-                        path: 'Users',
-                        model: 'User'
-                    });
+	private getOnlineUsers(roomId: string): string[] {
+		const connectedUsers: string[] = [];
+		const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId);
 
-                    if (!room)
-                        return resolve(false);
+		for (const socket of connectedSockets)
+			connectedUsers.push(socket.userId);
 
-                    const inRoom = (room.Users.find((us) => us.toString() == user.toString()) != undefined);
+		return connectedUsers;
+	}
 
-                    return resolve(inRoom);
-                });
+	private getReadyUsers(roomId: string) {
+		const readyUsers: string[] = [];
+		const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId && x.ready);
 
-                return resolve(false);
-            });
-        });
-    }
+		for (const socket of connectedSockets)
+			readyUsers.push(socket.userId);
 
-    private authenticate(token: string): Promise<IUser> {
-        return new Promise<IUser>((resolve, reject) => {
-            jwt.verify(token, 'secret', (err, decoded: any) => {
-                if (err) throw err;
-                Users.findOne({ email: decoded.email }, (err, res: IUser) => {
-                    resolve(res);
-                });
-            });
-        });
-    }
+		return readyUsers;
+	}
 
-    private getOnlineUsers(roomId: string): string[] {
-        const connectedUsers: string[] = [];
-        const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId);
+	private disconnectRoom(socket: SocketIO.Socket) {
+		const socketInfo = this.findSocket(socket);
 
-        for (const socket of connectedSockets)
-            connectedUsers.push(socket.userId);
+		if (!socketInfo)
+			return;
 
-        return connectedUsers;
-    }
+		console.log(`User disconnected from room ${socketInfo.roomId}`);
+		this.socketInfo.splice(this.socketInfo.indexOf(socketInfo), 1);
 
-    private getReadyUsers(roomId: string) {
-        const readyUsers: string[] = [];
-        const connectedSockets = this.socketInfo.filter(x => x.roomId == roomId && x.ready);
+		// Only stop when all users leaved
+		if (this.getOnlineUsers(socketInfo.roomId).length === 0) {
+			this.stopTorrents(socketInfo.roomId);
+		}
 
-        for (const socket of connectedSockets)
-            readyUsers.push(socket.userId);
+		// Send ready and online events so the clients can be updated.
+		this._io.in(socketInfo.roomId).emit('room:user:online', this.getOnlineUsers(socketInfo.roomId));
+		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
+	}
 
-        return readyUsers;
-    }
+	private updateReady(socket: SocketIO.Socket, ready: boolean) {
+		const socketInfo = this.findSocket(socket);
 
-    private disconnectRoom(socket: SocketIO.Socket) {
-        const socketInfo = this.findSocket(socket);
+		if (!socketInfo)
+			return;
+		socketInfo.ready = ready;
+		this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
+	}
 
-        if (!socketInfo)
-            return;
+	private sendPlayEvent(socket: Socket, currentTime: number) {
+		const socketInfo = this.findSocket(socket);
 
-        console.log(`User disconnected from room ${socketInfo.roomId}`);
-        this.socketInfo.splice(this.socketInfo.indexOf(socketInfo), 1);
+		if (!socketInfo)
+			return;
 
-        // Only stop when all users leaved
-        if(this.getOnlineUsers(socketInfo.roomId).length === 0){
-            this.stopTorrents(socketInfo.roomId);
-        }
+		socket.broadcast.to(socketInfo.roomId).emit('room:player:play', {
+			user: socketInfo.userId,
+			time: currentTime,
+			eventTime: new Date()
+		});
+	}
 
-        // Send ready and online events so the clients can be updated.
-        this._io.in(socketInfo.roomId).emit('room:user:online', this.getOnlineUsers(socketInfo.roomId));
-        this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
-    }
+	private sendPauseEvent(socket: Socket) {
+		const socketInfo = this.findSocket(socket);
 
-    private updateReady(socket: SocketIO.Socket, ready: boolean) {
-        const socketInfo = this.findSocket(socket);
+		if (!socketInfo)
+			return;
 
-        if (!socketInfo)
-            return;
-        socketInfo.ready = ready;
-        this._io.in(socketInfo.roomId).emit('room:user:ready', this.getReadyUsers(socketInfo.roomId));
-    }
+		socket.broadcast.to(socketInfo.roomId).emit('room:player:pause', { user: socketInfo.userId });
+	}
 
-    private sendPlayEvent(socket: Socket, currentTime: number) {
-        const socketInfo = this.findSocket(socket);
-
-        if (!socketInfo)
-            return;
-
-        socket.broadcast.to(socketInfo.roomId).emit('room:player:play', { user: socketInfo.userId, time: currentTime });
-    }
-
-    private sendPauseEvent(socket: Socket) {
-        const socketInfo = this.findSocket(socket);
-
-        if (!socketInfo)
-            return;
-
-        socket.broadcast.to(socketInfo.roomId).emit('room:player:pause', { user: socketInfo.userId });
-    }
-
-    private findSocket(socket: Socket) {
-        return this.socketInfo.find(x => x.socketId == socket.id);
-    }
+	private findSocket(socket: Socket) {
+		return this.socketInfo.find(x => x.socketId == socket.id);
+	}
 }
 
 export default RoomController;

@@ -1,13 +1,11 @@
-import WebTorrent, { Torrent } from "webtorrent";
+import WebTorrent from "webtorrent";
 import mongoose, { Connection } from 'mongoose';
-import SocketIO from "socket.io";
 // import { RoomManager } from './playback';
 import App from './app';
 import UserController from './controllers/user.controller';
 import StreamController from './controllers/stream.controller';
 import RoomController from './controllers/room.controller';
 import dotenv from 'dotenv';
-import {TmdbService} from './services/tmdb.service';
 // Configure .env file
 dotenv.config();
 
@@ -28,7 +26,7 @@ const io = require("socket.io")(server);
 let stream = new StreamController(io);
 AppInstance.initializeControllers([
 	new UserController(),
-    stream,
+	stream,
 	new RoomController(io, stream)
 ]);
 
@@ -57,8 +55,6 @@ const db: Connection = mongoose.connection;
 // 	if (videoFile)
 // 		AppInstance.getController(StreamController.name).setFile(videoFile);
 // });
-
-
 
 
 client.on("torrent", (a) => {
