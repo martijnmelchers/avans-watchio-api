@@ -7,10 +7,10 @@ export class TmdbController {
     public path = '/tmdb';
     public router = express.Router();
     constructor() {
-        this.initializeroutes();
+        this.initializeRoutes();
     }
 
-    private initializeroutes(){
+    private initializeRoutes(){
         this.router.get(`${this.path}/:query`, auth.required, (req, res) => this.getItems(req, res));
         this.router.get(`${this.path}/item/:itemId`, auth.required, (req, res) => this.getItem(req, res));
     }

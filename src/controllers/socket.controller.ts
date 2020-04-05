@@ -94,9 +94,12 @@ export default class SocketController {
 		socket.on('room:connect', (data) => this.connectRoom(socket, data));
 		socket.on('room:user:play', (data) => this.sendPlayEvent(socket, data));
 		socket.on('room:user:pause', () => this.sendPauseEvent(socket));
+		// Sync events
 		socket.on('room:torrent:canStream', (hash) => this.isStreamable(socket, hash));
 		socket.on('room:player:askSync', () => this.askSync(socket));
 		socket.on('room:player:replySync', (data) => this.sendSync(socket, data));
+		socket.on('room:player:forceSync', (data) => this.forceSync(socket, data))
+
 		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
 
@@ -245,5 +248,14 @@ export default class SocketController {
 
 		this._io.in(socketInfo.roomId).emit('room:player:answerSync', data);
 
+	}
+
+	private forceSync(socket: SocketIO.Socket, data: any) {
+		const socketInfo = this.findSocket(socket);
+
+		if (!socketInfo)
+			return;
+
+		this._io.in(socketInfo.roomId).emit('room:player:sync', { user: socketInfo.userId, ...data});
 	}
 }

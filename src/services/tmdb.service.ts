@@ -28,7 +28,7 @@ export  class TmdbService{
             params.append('page', '1');
 
 
-            let url = `${TmdbService.endpoint}/search/multi?${params.toString()}`;
+            let url = `${TmdbService.endpoint}/search/movie?${params.toString()}`;
 
             const response =await fetch(url);
 
