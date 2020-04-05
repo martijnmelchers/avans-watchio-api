@@ -1,9 +1,10 @@
 import * as express from 'express';
 import { NextFunction, Request, Response } from 'express';
 import Users, { IUser } from '../documents/user.interface';
+import Rooms from '../documents/room.interface';
+import Room from '../documents/room.interface';
 import auth from '../config/auth';
 import passport from 'passport';
-import Room from '../documents/room.interface';
 import fetch from 'node-fetch';
 
 class UserController {
@@ -24,7 +25,7 @@ class UserController {
 		this.router.post(`${this.path}/login`, this.login);
 		this.router.delete(this.path, auth.required, this.deleteUser);
 
-		this.router.put(`${this.path}`, auth.required, this.updateProfilePicture);
+		this.router.put(`${this.path}/me`, auth.required, this.updateProfilePicture);
 
 		// Google authentication
 		this.router.post(`${this.path}/google/:token`, this.registerGoogle);
@@ -136,6 +137,12 @@ class UserController {
 		if (!user)
 			return res.sendStatus(401);
 
+		const rooms = await Rooms.find({ Owner: user._id }).exec();
+
+		for (let room of rooms) {
+			await room.remove();
+		}
+
 		return res.json({ deleted: true });
 	}
 
@@ -150,14 +157,14 @@ class UserController {
 	}
 
 	private async updateProfilePicture(req: Request, res: Response) {
-        const user = req.user as IUser;
-        const profilePicture = req.body.profilePicture;
-        if (!profilePicture)
-            return res.sendStatus(400);
+		const user = req.user as IUser;
+		const profilePicture = req.body.profilePicture;
+		if (!profilePicture)
+			return res.sendStatus(400);
 
-        let userObj =  await Users.findOneAndUpdate({email: user.email}, {profilePicture: profilePicture}, {new: true}).exec();
-        return res.json(userObj?.toJSON());
-    }
+		let userObj = await Users.findOneAndUpdate({ email: user.email }, { profilePicture: profilePicture }, { new: true }).exec();
+		return res.json(userObj?.toJSON());
+	}
 
 	private async registerGoogle(req: Request, res: Response) {
 		const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${req.params.token}`);

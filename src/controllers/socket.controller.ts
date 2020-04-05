@@ -39,7 +39,7 @@ export default class SocketController {
 		this.socketInfo.push({
 			socketId: socket.id,
 			userId: user._id,
-			roomId: room.Id,
+			roomId: room.Id
 		});
 
 		if (this.getOnlineUsers(room.Id).length == 1)
@@ -61,27 +61,30 @@ export default class SocketController {
 			return;
 
 		for (const queueItem of room.Queue) {
-			const hasStarted = this.torrentInfo.find(x => x.hash == queueItem.InfoHash);
+			const existing = this.torrentInfo.find(x => x.hash == queueItem.InfoHash);
 
-			if (!hasStarted) {
-				this._streamController.setupStream(queueItem.MagnetUri, roomId);
-				this.torrentInfo.push({
-					hash: queueItem.InfoHash,
-					ready: false
-				});
 
-				this._streamController.once(`torrent:${queueItem.InfoHash}:ready`, () => {
-					const existing = this.torrentInfo.find(x => x.hash == queueItem.InfoHash);
+			if (existing)
+				this.torrentInfo.splice(this.torrentInfo.indexOf(existing), 1);
 
-					// If we can't find it, it has most likely been removed, no problem! :-)
-					if (!existing)
-						return;
+			this._streamController.setupStream(queueItem.MagnetUri, roomId);
+			this.torrentInfo.push({
+				hash: queueItem.InfoHash,
+				ready: false
+			});
 
-					existing.ready = true;
-					this._io.in(roomId).emit(`room:torrent:${existing.hash}:ready`, { hash: existing.hash });
-					this._io.in(roomId).emit(`room:torrent:ready`, existing.hash);
-				});
-			}
+			this._streamController.once(`torrent:${queueItem.InfoHash}:ready`, () => {
+				const existing = this.torrentInfo.find(x => x.hash == queueItem.InfoHash);
+
+				// If we can't find it, it has most likely been removed, no problem! :-)
+				if (!existing)
+					return;
+
+				existing.ready = true;
+				this._io.in(roomId).emit(`room:torrent:${existing.hash}:ready`, { hash: existing.hash });
+				this._io.in(roomId).emit(`room:torrent:ready`, existing.hash);
+			});
+
 		}
 	}
 
@@ -98,7 +101,7 @@ export default class SocketController {
 		socket.on('room:torrent:canStream', (hash) => this.isStreamable(socket, hash));
 		socket.on('room:player:askSync', () => this.askSync(socket));
 		socket.on('room:player:replySync', (data) => this.sendSync(socket, data));
-		socket.on('room:player:forceSync', (data) => this.forceSync(socket, data))
+		socket.on('room:player:forceSync', (data) => this.forceSync(socket, data));
 
 		socket.on('disconnect', () => this.disconnectRoom(socket));
 	}
@@ -205,8 +208,8 @@ export default class SocketController {
 			if (!existing)
 				return;
 
-			await this._streamController.stopStream(queueItem.MagnetUri);
 			this.torrentInfo.splice(this.torrentInfo.indexOf(existing), 1);
+			await this._streamController.stopStream(queueItem.MagnetUri);
 		}
 
 		return;
@@ -256,6 +259,6 @@ export default class SocketController {
 		if (!socketInfo)
 			return;
 
-		this._io.in(socketInfo.roomId).emit('room:player:sync', { user: socketInfo.userId, ...data});
+		this._io.in(socketInfo.roomId).emit('room:player:sync', { user: socketInfo.userId, ...data });
 	}
 }

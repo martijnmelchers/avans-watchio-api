@@ -43,6 +43,7 @@ RoomSchema.set('toJSON', {
     transform: function(doc, ret, options) {
         delete ret.Hash;
         delete ret.Salt;
+
         return ret;
     }
 });

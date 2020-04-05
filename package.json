@@ -2,7 +2,7 @@
   "name": "avans-webs5",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "start": "tsc && node .",
     "nodemon": "nodemon --watch src -e ts,esj --exec npm run start",
