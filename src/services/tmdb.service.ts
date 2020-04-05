@@ -6,7 +6,7 @@ export interface TmdbItem {
     vote_count: number;
     popularity: number;
     title: string;
-    release_data: DateTimeFormat;
+    release_date: DateTimeFormat;
     media_type: string;
 }
 
@@ -33,6 +33,17 @@ export  class TmdbService{
             const response =await fetch(url);
 
             resolve(await response.json() as TmdbResult);
+        });
+    }
+
+    public static getItem (itemId: number): Promise<TmdbItem>{
+        return new Promise< TmdbItem>(async (resolve, reject) => {
+            let params = new URLSearchParams("?api_key=placeholder");
+            params.set('api_key', process.env.TMDB_API_KEY_V3 ? process.env.TMDB_API_KEY_V3 : "");
+
+            let url = `${TmdbService.endpoint}/movie/${itemId}?${params.toString()}`;
+            const response = await fetch(url);
+            resolve(await response.json() as TmdbItem);
         });
     }
 }

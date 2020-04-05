@@ -5,6 +5,7 @@ import StreamController from './controllers/stream.controller';
 import RoomController from './controllers/room.controller';
 import dotenv from 'dotenv';
 import SocketController from './controllers/socket.controller';
+import {TmdbController} from './controllers/tmdb.controller';
 
 dotenv.config();
 
@@ -23,7 +24,8 @@ const socket = new SocketController(io, stream);
 AppInstance.initializeControllers([
 	new UserController(),
 	stream,
-	new RoomController(io, stream, socket)
+	new RoomController(io, stream, socket),
+    new TmdbController()
 ]);
 
 mongoose.connect("mongodb://localhost/test", { useUnifiedTopology: true, useNewUrlParser: true });
