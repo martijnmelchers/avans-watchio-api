@@ -8,6 +8,9 @@ export interface TmdbItem {
     title: string;
     release_date: DateTimeFormat;
     media_type: string;
+    backdrop_path: string;
+    poster_path: string;
+    overview: string;
 }
 
 export interface TmdbResult {

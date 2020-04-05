@@ -217,6 +217,9 @@ class RoomController {
 			queueItem.InfoHash = infoHash;
 			queueItem.Title = tmdbItem.title;
 			queueItem.Release = tmdbItem.release_date;
+			queueItem.Overview = tmdbItem.overview;
+			queueItem.Backdrop_path = tmdbItem.backdrop_path;
+			queueItem.Poster_path = tmdbItem.poster_path;
 
 			room?.Queue.push(queueItem);
 			room = await room?.save();
