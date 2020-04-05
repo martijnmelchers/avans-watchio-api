@@ -12,13 +12,13 @@ import jwt from 'jsonwebtoken';
 import mongoose from "mongoose";
 import {Response} from 'express';
 import {IRoom} from '../src/documents/room.interface';
+import socketClient from 'socket.io-client';
 
 const AppInstance = new App(5000);
 const server = AppInstance.listen();
 const io = require("socket.io")(server);
 const stream = new StreamController(io);
 const socket = new SocketController(io, stream);
-
 
 let discriminator =  Math.random().toString().substr(2, 4);
 let email  = "test@super.me";
@@ -40,6 +40,7 @@ before((done) =>{
     ]);
     mongoose.connect("mongodb://localhost/test", { useUnifiedTopology: true, useNewUrlParser: true }, async () => {
         mongoose.set('useFindAndModify', false);
+        await Rooms.deleteMany({}).exec();
         let savedUser = await  Users.findOne({email: newUser.email}).exec();
         if(savedUser){
             newUser = savedUser;
@@ -105,15 +106,18 @@ describe('/ROOMS', function(){
     });
 
 
-    describe('PUT', function(){
+    describe('PUT/POST', function(){
         describe('USER', function(){
-            describe('INVITE', function() {
-                let room:any= null;
-                before( async ()=> {
-                    room = await createDummyRoom("test room xxx");
-                });
+            let room:any= null;
+            before( async ()=> {
+                room = await createDummyRoom("test room xxx");
+            });
 
-                it('invite user should return valid room', async function(done){
+            describe('INVITE', function() {
+
+
+                it('invite user should return valid room',  function(done){
+
                      request(AppInstance.getServer()).post(`/rooms/${room.Id}/users`)
                      .set('Authorization', `Token ${token}`)
                      .send({
@@ -125,11 +129,67 @@ describe('/ROOMS', function(){
                      })
                 });
             });
+
+            describe('SETROLE', function() {
+                it('setrole should return valid room',  function(done){
+                    const roleEmail = "hank@gmail.com";
+                    request(AppInstance.getServer()).put(`/rooms/${room.Id}/users/${roleEmail}`)
+                        .set('Authorization', `Token ${token}`)
+                        .send({
+                            PermissionLevel: 1
+                        }).end((err,  res) => {
+                        expect(res.status).to.equal(200);
+                        expect(res.body).to.have.property('Id');
+                        done();
+                    })
+                });
+            });
         });
     });
+
+    describe('QUEUE', function(){
+        let room:any= null;
+        before( async ()=> {
+            room = await createDummyRoom("queue room");
+            stream.setupStream("magnet:?xt=urn:btih:6657edf8c89b81f0bc4cbcdf0526f7816587bf9d&dn=Pulp.Fiction.1994.1080p.BluRay.x264.DTS-ETRG&tr=udp%3a%2f%2f9.rarbg.me%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fthetracker.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969&tr=udp%3a%2f%2ftracker.leechers-paradise.org%3a6969%2fannounce&tr=udp%3a%2f%2feddie4.nl%3a6969%2fannounce&tr=udp%3a%2f%2fzer0day.ch%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.sktorrent.net%3a6969%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.blackunicorn.xyz%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.zer0day.to%3a1337%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce", room.Id);
+        });
+
+        it( 'should add to queue', function(done){
+            request(AppInstance.getServer()).post(`/rooms/${room.Id}/queue`)
+                .set('Authorization', `Token ${token}`)
+                .send({
+                    MagnetUri: "magnet:?xt=urn:btih:6657edf8c89b81f0bc4cbcdf0526f7816587bf9d&dn=Pulp.Fiction.1994.1080p.BluRay.x264.DTS-ETRG&tr=udp%3a%2f%2f9.rarbg.me%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969%2fannounce&tr=udp%3a%2f%2fthetracker.org%3a80%2fannounce&tr=udp%3a%2f%2ftracker.coppersurfer.tk%3a6969&tr=udp%3a%2f%2ftracker.leechers-paradise.org%3a6969%2fannounce&tr=udp%3a%2f%2feddie4.nl%3a6969%2fannounce&tr=udp%3a%2f%2fzer0day.ch%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.sktorrent.net%3a6969%2fannounce&tr=udp%3a%2f%2f9.rarbg.to%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.blackunicorn.xyz%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.aletorrenty.pl%3a2710%2fannounce&tr=udp%3a%2f%2ftracker.piratepublic.com%3a1337%2fannounce&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce&tr=udp%3a%2f%2fglotorrents.pw%3a6969%2fannounce&tr=udp%3a%2f%2ftracker.zer0day.to%3a1337%2fannounce&tr=udp%3a%2f%2fcoppersurfer.tk%3a6969%2fannounce",
+                    tmdbId: 680
+                }).end((err,  res) => {
+                expect(res.status).to.equal(200);
+                expect(res.body).to.have.property('Id');
+                expect(res.body.Queue.length).to.equal(1);
+                done();
+            })
+        });
+
+        it( 'should remove from queue', function(done){
+            request(AppInstance.getServer()).delete(`/rooms/${room.Id}/queue/1`)
+                .set('Authorization', `Token ${token}`)
+                .send().end((err,  res) => {
+                expect(res.status).to.equal(200);
+                expect(res.body).to.have.property('Id');
+                expect(res.body.Queue.length).to.equal(0);
+                done();
+            })
+        });
+
+        it('should stream', function(done){
+            const hash = "6657edf8c89b81f0bc4cbcdf0526f7816587bf9d";
+            stream.once(`torrent:${hash}:ready`, () => {
+                request(AppInstance.getServer()).get(`/stream/${hash}`).send().end((err, res) =>{
+                    done();
+                });
+            });
+        });
+    })
+
 });
-
-
 
 
 async function createInviteableUser(): Promise<any>{

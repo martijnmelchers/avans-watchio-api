@@ -40,7 +40,7 @@ class RoomController {
 		// User routes
 		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.kickUser(req, res));
 		this.router.get(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.getUser(req, res));
-		this.router.post(`${this.path}/:roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
+		this.router.post(`${this.path}/:roomId/users`, auth.required, isRoomManager, (req, res) => this.inviteUser(req, res));
 
 		this.router.put(`${this.path}/:roomId/users/:email`, auth.required, isRoomAdmin, (req, res) => this.setRole(req, res));
 		this.router.get(`${this.path}/:roomId/users/:email/queue/:position`, auth.required, inRoom, (req, res) => this.getQueueItem(req, res));
@@ -140,7 +140,7 @@ class RoomController {
 			}
 		}, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'User.Role', model: 'Role' })
+			.populate({ path: 'Users.Role', model: 'Role' })
 			.exec();
 		if (!roomObj)
 			return res.sendStatus(500);
@@ -164,7 +164,7 @@ class RoomController {
 
 		const roomObj = await Rooms.findOneAndUpdate({ Id: roomId }, { $pull: { Users: { User: userObj?.toObject() } } }, { new: true })
 			.populate({ path: 'Users.User', model: 'User' })
-			.populate({ path: 'User.Role', model: 'Role' })
+			.populate({ path: 'Users.Role', model: 'Role' })
 			.exec();
 
 		if (!roomObj)
@@ -380,8 +380,10 @@ class RoomController {
 		const userEmail = req.body.email;
 
 		// @ts-ignore
-		if (room?.Users.find((usr) => usr.User.email == userEmail))
-			return res.sendStatus(400);
+		if (room?.Users.find((usr) => usr.User.email == userEmail)){
+            return res.sendStatus(400);
+        }
+
 
 		if (!room)
 			return res.sendStatus(404);

@@ -45,8 +45,8 @@ class App {
 
 	private initializeMiddlewares() {
 		this.app.use(passport.initialize());
-		this.app.use(bodyParser.json());
-		this.app.use(bodyParser.urlencoded({ extended: true }));
+		this.app.use(bodyParser.json({limit: "50mb"}));
+		this.app.use(bodyParser.urlencoded({ extended: true, limit: '50mb'}));
 		this.app.use(cors());
 	}
 }
