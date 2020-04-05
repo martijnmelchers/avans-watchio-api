@@ -300,10 +300,11 @@ class RoomController {
 			return res.sendStatus(404);
 
 
-		if (newPos < room.Queue.length) {
-			for (let item of room.Queue) {
+
+		if (newPos <= room.Queue.length) {
+			for (let item of room.Queue.sort((a,b) => a.Position - b.Position)) {
 				if (oldPos > newPos) {
-					if (item.Position < oldPos)
+					if (item.Position <= oldPos)
 						item.Position = item.Position + 1;
 					else if (item.Position == oldPos)
 						item.Position = newPos;
