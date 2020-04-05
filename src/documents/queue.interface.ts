@@ -5,6 +5,8 @@ export interface IQueueItem extends Document {
 	MagnetUri: string;
     Owner: Schema.Types.ObjectId;
     InfoHash: string;
+    Release: Date;
+    Title: string;
 }
 
 export const QueueItemSchema: Schema = new Schema({
@@ -12,4 +14,6 @@ export const QueueItemSchema: Schema = new Schema({
 	MagnetUri: { type: String, required: true},
     InfoHash: {type: String, required: true},
     Owner: { type: Schema.Types.ObjectId, ref: 'User' },
+    Title: {type: String, required: false},
+    Release: {type: Date, required: false}
 });

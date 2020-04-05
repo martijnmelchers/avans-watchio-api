@@ -11,6 +11,7 @@ import parseTorrent from 'parse-torrent';
 import SocketController from './socket.controller';
 import {isRoomAdmin} from '../middleware/is-room-admin';
 import {isRoomManager} from '../middleware/is-room- manager';
+import {TmdbService} from '../services/tmdb.service';
 
 class RoomController {
 	public path = '/rooms';
@@ -202,15 +203,20 @@ class RoomController {
 		// @ts-ignore
 		const index: number = this.getQueueIndex(room);
 
-
 		try {
 			let infoHash = parseTorrent(req.body.MagnetUri)?.infoHash;
 			if (!infoHash)
 				return res.sendStatus(400);
 
 			const queueItem = req.body;
+			const tmdbId = queueItem.tmdbId;
+			delete queueItem.tmdbId;
+
+			const tmdbItem = await TmdbService.getItem(tmdbId);
 			queueItem.Position = index + 1;
 			queueItem.InfoHash = infoHash;
+			queueItem.Title = tmdbItem.title;
+			queueItem.Release = tmdbItem.release_date;
 
 			room?.Queue.push(queueItem);
 			room = await room?.save();
@@ -218,7 +224,7 @@ class RoomController {
 				return res.sendStatus(500);
 
 			room = await room.populate({ path: 'Users.User', model: 'User' })
-				.populate({ path: 'User.Role', model: 'Role' })
+				.populate({ path: 'Users.Role', model: 'Role' })
 				.execPopulate();
 
 
@@ -238,18 +244,35 @@ class RoomController {
 		const posNum = Number(req.params.queueItemPos);
 
 		// @ts-ignore
-		Rooms.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Queue: { Position: posNum } } }, { new: true })
-			.populate({ path: 'Users.User', model: 'User' })
-			// @ts-ignore
-			.populate({ path: 'User.Role', model: 'Role' }, (err, updated) => {
-				if (!updated)
-					return res.sendStatus(500);
+        let roomOld = await Rooms.findOneAndUpdate({ Id: req.params.roomId }, { $pull: { Queue: { Position: posNum } } }, { new: true })
+            .populate({path: 'Users.User', model: 'User'})
+            .populate({ path: 'Users.Role', model: 'Role' })
+            .exec();
+
+        if (!roomOld)
+            return res.sendStatus(500);
 
 
-				this._io.in(updated.Id).emit('room:updated', updated);
-				this._io.in(updated.Id).emit('room:queue:removed', updated);
-				return res.json(updated.toJSON());
-			});
+        roomOld.Queue.forEach((item, index) => {
+
+            if( item.Position > posNum){
+                // @ts-ignore
+                roomOld.Queue[index].Position = roomOld?.Queue[index].Position - 1;
+            }
+        });
+
+        console.log(roomOld.Queue);
+        roomOld = await Rooms.findByIdAndUpdate(roomOld._id, {Queue: roomOld.Queue}, {new: true})
+            .populate({path: 'Users.User', model: 'User'})
+            .populate({ path: 'Users.Role', model: 'Role' })
+            .exec();
+        if(!roomOld)
+            return res.sendStatus(500);
+
+        this._io.in(roomOld.Id).emit('room:updated', roomOld);
+        this._io.in(roomOld.Id).emit('room:queue:removed', roomOld);
+        return res.json(roomOld.toJSON());
+
 	};
 
 	private async moveQueue(req: Request, res: Response){
