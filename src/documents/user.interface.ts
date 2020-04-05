@@ -15,6 +15,7 @@ export interface IUser extends Document {
 	generateJWT: Function,
 	googleId: string;
 	facebookId: string;
+	profilePicture: string;
 }
 
 export const UserSchema: Schema = new Schema({
@@ -24,7 +25,8 @@ export const UserSchema: Schema = new Schema({
 	hash: { type: String, required: true },
 	salt: { type: String, required: true },
 	googleId: { type: String, required: false },
-	facebookId: { type: String, required: false }
+	facebookId: { type: String, required: false },
+    profilePicture: {type: String, required: false}
 });
 
 

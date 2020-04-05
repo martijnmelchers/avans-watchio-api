@@ -7,8 +7,8 @@ export interface IQueueItem extends Document {
     InfoHash: string;
     Release: Date;
     Title: string;
-    Poster_path: string;
-    Backdrop_path: string;
+    PosterPath: string;
+    BackdropPath: string;
     Overview: string;
 }
 
@@ -19,7 +19,7 @@ export const QueueItemSchema: Schema = new Schema({
     Owner: { type: Schema.Types.ObjectId, ref: 'User' },
     Title: {type: String, required: false},
     Release: {type: Date, required: false},
-    Poster_path: {type: String, required: false},
-    Backdrop_path: {type: String, required: false },
+    PosterPath: {type: String, required: false},
+    BackdropPath: {type: String, required: false },
     Overview: {type: String, required: false}
 });

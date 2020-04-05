@@ -24,6 +24,8 @@ class UserController {
 		this.router.post(`${this.path}/login`, this.login);
 		this.router.delete(this.path, auth.required, this.deleteUser);
 
+		this.router.put(`${this.path}`, auth.required, this.updateProfilePicture);
+
 		// Google authentication
 		this.router.post(`${this.path}/google/:token`, this.registerGoogle);
 
@@ -146,6 +148,16 @@ class UserController {
 
 		return res.json(user);
 	}
+
+	private async updateProfilePicture(req: Request, res: Response) {
+        const user = req.user as IUser;
+        const profilePicture = req.body.profilePicture;
+        if (!profilePicture)
+            return res.sendStatus(400);
+
+        let userObj =  await Users.findOneAndUpdate({email: user.email}, {profilePicture: profilePicture}, {new: true}).exec();
+        return res.json(userObj?.toJSON());
+    }
 
 	private async registerGoogle(req: Request, res: Response) {
 		const response = await fetch(`https://www.googleapis.com/oauth2/v1/userinfo?access_token=${req.params.token}`);
