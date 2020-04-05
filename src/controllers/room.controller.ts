@@ -2,14 +2,14 @@ import { default as express, Request, Response } from 'express';
 import Rooms, { IRoom } from '../documents/room.interface';
 import auth from '../config/auth';
 import Users, { IUser } from '../documents/user.interface';
-import Roles, {IRole} from '../documents/role.interface';
+import Roles from '../documents/role.interface';
 import { IQueueItem } from '../documents/queue.interface';
 import { Server } from 'socket.io';
 import { inRoom } from '../middleware/in-room.middleware';
 import StreamController from './stream.controller';
 import parseTorrent from 'parse-torrent';
 import SocketController from './socket.controller';
-import {isRoomAdmin} from '../middleware/is-room-admin';
+import { isRoomAdmin } from '../middleware/is-room-admin';
 
 class RoomController {
 	public path = '/rooms';
@@ -38,9 +38,9 @@ class RoomController {
 		// User routes
 		this.router.delete(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.kickUser(req, res));
 		this.router.get(`${this.path}/:roomId/users/:email`, auth.required, inRoom, (req, res) => this.getUser(req, res));
-		this.router.post(`${this.path}/roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
+		this.router.post(`${this.path}/:roomId/users`, auth.required, inRoom, (req, res) => this.inviteUser(req, res));
 
-		this.router.put(`${this.path}/:roomId/users/:email`, auth.required, isRoomAdmin,  (req, res) => this.setRole(req,res));
+		this.router.put(`${this.path}/:roomId/users/:email`, auth.required, isRoomAdmin, (req, res) => this.setRole(req, res));
 
 		// Queue Routes
 		this.router.post(`${this.path}/:roomId/queue`, auth.required, inRoom, (req, res) => this.addToQueue(req, res));
@@ -222,7 +222,7 @@ class RoomController {
 			this._io.in(room.Id).emit('room:updated', room.toObject());
 			this._io.in(room.Id).emit('room:queue:added', room.toObject());
 			res.json(room.toJSON());
-		} catch(e) {
+		} catch (e) {
 			return res.sendStatus(400);
 		}
 
@@ -258,14 +258,14 @@ class RoomController {
 	private async inviteUser(req: Request, res: Response) {
 		const roomId: string = req.params.roomId;
 		const room = await Rooms.findOne({ Id: roomId }).exec();
-		const addedUserId = req.body.Id;
+		const addedUserEmail = req.body.email;
 		if (!room)
 			return res.sendStatus(404);
 
-		const user: IUser | undefined = req.user as IUser;
+		const user: IUser = req.user as IUser;
 		const userObj = await Users.findOne({ email: user.email }).exec();
 
-		if (!userObj || !addedUserId)
+		if (!userObj || !addedUserEmail)
 			return res.sendStatus(400);
 
 
@@ -274,12 +274,20 @@ class RoomController {
 		if (!viewerRole)
 			return;
 
-		if (user._id.toString() == room?.Owner.toString()) {
+		console.log(userObj._id);
+		console.log(room.Owner);
+
+		if (userObj._id == room.Owner) {
+			const user = await Users.findOne({ email: addedUserEmail }).exec();
+
+			if (!user)
+				return;
+
 			const roomObj = await Rooms.findByIdAndUpdate(room._id, {
 				$addToSet: {
 					Users: [{
 						Role: viewerRole._id,
-						User: addedUserId
+						User: user._id
 					}]
 				}
 			}, { new: true })
@@ -333,32 +341,35 @@ class RoomController {
 	};
 
 
-	private async setRole(req: Request, res: Response){
-        const permissionLevel = req.body.PermissionLevel;
-        if(!permissionLevel)
-            return res.sendStatus(400);
+	private async setRole(req: Request, res: Response) {
+		const permissionLevel = req.body.PermissionLevel;
+		if (!permissionLevel)
+			return res.sendStatus(400);
 
-        const email = req.params.email;
-        const roomId = req.params.roomId;
-        let room = await Rooms.findOne({Id : roomId}).populate({path: 'Users.Role', model: 'Role'}).populate({path: 'Users.User', model: 'User'}).exec();
-        const role = await Roles.findOne({PermissionLevel: permissionLevel}).exec();
+		const email = req.params.email;
+		const roomId = req.params.roomId;
+		let room = await Rooms.findOne({ Id: roomId }).populate({
+			path: 'Users.Role',
+			model: 'Role'
+		}).populate({ path: 'Users.User', model: 'User' }).exec();
+		const role = await Roles.findOne({ PermissionLevel: permissionLevel }).exec();
 
-        if(!room || !role)
-            return res.sendStatus(404);
+		if (!room || !role)
+			return res.sendStatus(404);
 
-        // @ts-ignore
-        let user = room.Users.findIndex((usr) => usr.User.email == email);
-        if(user === -1)
-            return res.sendStatus(404);
+		// @ts-ignore
+		let user = room.Users.findIndex((usr) => usr.User.email == email);
+		if (user === -1)
+			return res.sendStatus(404);
 
-        // @ts-ignore
-        room.Users[user].Role = role._id;
-        room = await room.save();
+		// @ts-ignore
+		room.Users[user].Role = role._id;
+		room = await room.save();
 
 
-        this._io.in(room.Id).emit('room:updated', room.toJSON());
-        return res.json(room.toJSON());
-    }
+		this._io.in(room.Id).emit('room:updated', room.toJSON());
+		return res.json(room.toJSON());
+	}
 
 	private async getRole(roleName: string) {
 		return await Roles.findOne({ Name: roleName }).exec();

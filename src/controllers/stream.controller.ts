@@ -55,7 +55,6 @@ class StreamController {
 			torrent.on('download', () => this.onProgress(torrent, room));
 
 
-
 			return torrent.infoHash;
 		});
 	}
@@ -87,7 +86,7 @@ class StreamController {
 		magnetUris.forEach((magnetUri) => {
 			let torrent = this._client.get(magnetUri);
 
-			if(!torrent)
+			if (!torrent)
 				return;
 
 			if (torrent.done) {
@@ -101,9 +100,10 @@ class StreamController {
 				peers: torrent.numPeers,
 				hash: torrent.infoHash
 			};
-
 			this._io.to(roomId).emit('room:torrent:progress', torrentData);
-			this._io.to(roomId).emit('room:torrent:ready', torrent.infoHash);
+
+			if (torrent.ready)
+				this._io.to(roomId).emit('room:torrent:ready', torrent.infoHash);
 		});
 	}
 
